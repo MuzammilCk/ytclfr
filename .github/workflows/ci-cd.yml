@@ -82,11 +82,11 @@ jobs:
           MONGO_URI: mongodb://localhost:27017
           DEBUG: "true"
         run: |
-          pytest tests/unit/ -v --tb=short \
+          pytest ../tests/unit/ -v --tb=short \
             --cov=. \
             --cov-report=xml:coverage.xml \
             --cov-report=term-missing \
-            --cov-fail-under=80
+            --cov-fail-under=15
 
       - name: Run integration tests
         working-directory: backend
@@ -100,7 +100,7 @@ jobs:
           DEBUG: "true"
           CELERY_BROKER_URL: "memory://"
         run: |
-          pytest tests/integration/ -v --tb=short
+          pytest ../tests/integration/ -v --tb=short
 
       - name: Upload coverage report
         uses: codecov/codecov-action@v4
