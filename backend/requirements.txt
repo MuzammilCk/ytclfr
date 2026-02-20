@@ -16,7 +16,7 @@ sqlalchemy==2.0.36
 asyncpg==0.30.0
 alembic==1.14.0
 motor==3.7.1            # async MongoDB driver
-pymongo==4.16.0
+pymongo==4.11.1
 # redis[asyncio] replaces both redis + the deprecated aioredis package
 redis[asyncio]==5.2.1
 
@@ -55,8 +55,8 @@ pytesseract==0.3.13
 scikit-image==0.25.1
 
 # ── NLP ───────────────────────────────────────────────────────────────────────
-spacy>=3.8.11
-en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl
+spacy==3.8.2
+en-core-web-sm==3.8.0
 sentence-transformers==3.3.1
 langdetect==1.0.9
 
