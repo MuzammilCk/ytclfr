@@ -4,9 +4,11 @@ Centralised settings loaded from environment variables / .env file.
 All secrets live here — never hard-code them.
 """
 from functools import lru_cache
+import json
 from typing import List, Optional
 from pydantic import AnyHttpUrl, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+from typing_extensions import Annotated
 
 
 class Settings(BaseSettings):
@@ -23,7 +25,7 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     ENVIRONMENT: str = "production"          # development | staging | production
     SECRET_KEY: str = "change-me-in-production-use-openssl-rand-hex-32"
-    ALLOWED_ORIGINS: List[str] = ["http://localhost:3000"]
+    ALLOWED_ORIGINS: Annotated[List[str], NoDecode] = ["http://localhost:3000"]
 
     # ── Database ─────────────────────────────────────────────────────────────
     POSTGRES_HOST: str = "localhost"
@@ -84,8 +86,27 @@ class Settings(BaseSettings):
     @field_validator("ALLOWED_ORIGINS", mode="before")
     @classmethod
     def parse_origins(cls, v):
+        """Support JSON array or comma-separated origins from env vars."""
+        if isinstance(v, list):
+            return [str(origin).strip() for origin in v if str(origin).strip()]
+
         if isinstance(v, str):
-            return [origin.strip() for origin in v.split(",")]
+            value = v.strip()
+            if not value:
+                return []
+
+            # JSON array style: '["http://localhost:3000"]'
+            if value.startswith("["):
+                try:
+                    parsed = json.loads(value)
+                    if isinstance(parsed, list):
+                        return [str(origin).strip() for origin in parsed if str(origin).strip()]
+                except json.JSONDecodeError:
+                    pass
+
+            # CSV style: 'http://a.com,http://b.com'
+            return [origin.strip() for origin in value.split(",") if origin.strip()]
+
         return v
 
     @property
