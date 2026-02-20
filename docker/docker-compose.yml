@@ -1,0 +1,178 @@
+version: "3.9"
+
+# ── Networks ──────────────────────────────────────────────────────────────────
+networks:
+  ytclassifier:
+    driver: bridge
+
+# ── Named volumes ─────────────────────────────────────────────────────────────
+volumes:
+  postgres_data:
+  mongo_data:
+  redis_data:
+  rabbitmq_data:
+  model_cache:
+  media_tmp:
+
+# ── Services ──────────────────────────────────────────────────────────────────
+services:
+
+  # ── Infrastructure ──────────────────────────────────────────────────────────
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ytclassifier}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks: [ytclassifier]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+    ports:
+      - "27017:27017"
+    networks: [ytclassifier]
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks: [ytclassifier]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-guest}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"   # management UI
+    networks: [ytclassifier]
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  # ── Application ──────────────────────────────────────────────────────────────
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - POSTGRES_HOST=postgres
+      - MONGO_URI=mongodb://mongo:27017
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672//
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+    volumes:
+      - media_tmp:/tmp/ytclassifier
+      - model_cache:/root/.cache
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks: [ytclassifier]
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --workers 2
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - POSTGRES_HOST=postgres
+      - MONGO_URI=mongodb://mongo:27017
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672//
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+    volumes:
+      - media_tmp:/tmp/ytclassifier
+      - model_cache:/root/.cache
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks: [ytclassifier]
+    command: >
+      celery -A services.pipeline.celery_app worker
+        --loglevel=info
+        --concurrency=2
+        --queues=default
+
+  flower:
+    image: mher/flower:2.0
+    restart: unless-stopped
+    environment:
+      - CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672//
+      - FLOWER_PORT=5555
+    ports:
+      - "5555:5555"
+    depends_on: [rabbitmq, redis]
+    networks: [ytclassifier]
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+    ports:
+      - "3000:80"
+    depends_on: [api]
+    networks: [ytclassifier]
+
+  nginx:
+    image: nginx:1.26-alpine
+    restart: unless-stopped
+    volumes:
+      - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "80:80"
+    depends_on: [api, frontend]
+    networks: [ytclassifier]

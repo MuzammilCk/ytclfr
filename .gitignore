@@ -1,0 +1,112 @@
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+# Distribution / packaging
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ── Virtual Environments ──────────────────────────────────────────────────────
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# ── Jupyter Notebooks ─────────────────────────────────────────────────────────
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*
+profile_default/
+ipython_config.py
+
+# ── Node.js / Frontend ────────────────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.npm/
+.docz/
+.next/
+.nuxt/
+dist/
+.cache/
+.parcel-cache
+frontend/dist/
+frontend/.env
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+
+# ── Project Specific (Data / Media) ───────────────────────────────────────────
+# Audio/Video downloads & temp files
+*.mp3
+*.mp4
+*.wav
+*.webm
+*.mkv
+backend/data/audio/
+backend/data/video/
+backend/data/frames/
+temp/
+tmp/
+celerybeat-schedule
+celerybeat.pid
+
+# ML Models (large files)
+*.pt
+*.pth
+*.onnx
+*.bin
+backend/models/checkpoints/
+
+# ── IDEs & Editors ────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# ── Environment Variables ─────────────────────────────────────────────────────
+# Keep .env.example, ignore actual .env
+.env
+.env.*
+!.env.example
+
+# ── Logs & Databases ──────────────────────────────────────────────────────────
+*.log
+*.sqlite
+*.sqlite3
+*.db
+
+# ── Testing / Coverage ────────────────────────────────────────────────────────
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+test-results/
+junit/

@@ -1,0 +1,239 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_API: ${{ github.repository }}/ytclassifier-api
+  IMAGE_FRONTEND: ${{ github.repository }}/ytclassifier-frontend
+
+jobs:
+  # ── Backend Tests ───────────────────────────────────────────────────────────
+  test-backend:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: ytclassifier_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 3s
+          --health-retries 5
+
+      mongo:
+        image: mongo:7
+        ports: ["27017:27017"]
+        options: >-
+          --health-cmd "mongosh --eval \"db.adminCommand('ping')\""
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install system deps (FFmpeg + Tesseract)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg tesseract-ocr tesseract-ocr-eng libsm6 libxext6
+
+      - name: Install Python deps
+        working-directory: backend
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          python -m spacy download en_core_web_sm
+
+      - name: Run unit tests
+        working-directory: backend
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_DB: ytclassifier_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          REDIS_URL: redis://localhost:6379/0
+          MONGO_URI: mongodb://localhost:27017
+          DEBUG: "true"
+        run: |
+          pytest tests/unit/ -v --tb=short \
+            --cov=. \
+            --cov-report=xml:coverage.xml \
+            --cov-report=term-missing \
+            --cov-fail-under=80
+
+      - name: Run integration tests
+        working-directory: backend
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_DB: ytclassifier_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          REDIS_URL: redis://localhost:6379/0
+          MONGO_URI: mongodb://localhost:27017
+          DEBUG: "true"
+          CELERY_BROKER_URL: "memory://"
+        run: |
+          pytest tests/integration/ -v --tb=short
+
+      - name: Upload coverage report
+        uses: codecov/codecov-action@v4
+        with:
+          file: backend/coverage.xml
+          flags: backend
+        if: always()
+
+  # ── Frontend Tests ──────────────────────────────────────────────────────────
+  test-frontend:
+    name: Frontend Build Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install deps
+        working-directory: frontend
+        run: npm ci
+
+      - name: Type-check + lint
+        working-directory: frontend
+        run: npm run lint --if-present
+
+      - name: Build
+        working-directory: frontend
+        run: npm run build
+        env:
+          VITE_API_URL: http://localhost:8000
+
+  # ── Security Scan ───────────────────────────────────────────────────────────
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner (backend)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: "fs"
+          scan-ref: "./backend"
+          severity: "CRITICAL,HIGH"
+          exit-code: "0"   # warn only, don't fail
+
+      - name: Check for secrets
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          extra_args: --only-verified
+
+  # ── Docker Build ────────────────────────────────────────────────────────────
+  build-images:
+    name: Build Docker Images
+    runs-on: ubuntu-latest
+    needs: [test-backend, test-frontend]
+    if: github.ref == 'refs/heads/main'
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push API image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_API }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_API }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push Frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_FRONTEND }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_FRONTEND }}:${{ github.sha }}
+          build-args: |
+            VITE_API_URL=https://api.ytclassifier.io
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ── Deploy to Production ────────────────────────────────────────────────────
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [build-images]
+    if: github.ref == 'refs/heads/main'
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.PROD_HOST }}
+          username: ${{ secrets.PROD_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          script: |
+            cd /srv/ytclassifier
+            git pull origin main
+            docker compose pull
+            docker compose up -d --remove-orphans
+            docker system prune -f
+            echo "Deployment complete at $(date)"
+
+      - name: Health check
+        run: |
+          sleep 15
+          curl -f https://api.ytclassifier.io/health || exit 1
+          echo "Health check passed"

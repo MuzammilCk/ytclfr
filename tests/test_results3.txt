@@ -1,0 +1,739 @@
+.................sssssEEEEEEEEEEEEEEEE                                   [100%]
+=================================== ERRORS ====================================
+___ ERROR at setup of TestAnalyticsSummary.test_summary_endpoint_registered ___
+..\tests\integration\test_analytics.py:22: in client
+    from main import app
+main.py:16: in <module>
+    from api.routes.analysis import router as analysis_router
+api\routes\analysis.py:35: in <module>
+    from services.pipeline import analyse_video as celery_analyse
+services\pipeline.py:16: in <module>
+    from celery import Celery
+<frozen importlib._bootstrap>:1412: in _handle_fromlist
+    ???
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\local.py:459: in __getattr__
+    module = __import__(self._object_origins[name], None, None,
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\app\__init__.py:2: in <module>
+    from celery import _state
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\_state.py:15: in <module>
+    from celery.utils.threads import LocalStack
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\utils\__init__.py:6: in <module>
+    from kombu.utils.objects import cached_property
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\utils\__init__.py:6: in <module>
+    from .compat import fileno, maybe_fileno, nested, register_after_fork
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\utils\compat.py:12: in <module>
+    from kombu.exceptions import reraise
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\exceptions.py:9: in <module>
+    from amqp import ChannelError, ConnectionError, ResourceError
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\__init__.py:31: in <module>
+    from .connection import Connection  # noqa
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\connection.py:13: in <module>
+    from . import __version__, sasl, spec
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\sasl.py:156: in <module>
+    GSSAPI = _get_gssapi_mechanism()
+             ^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\sasl.py:81: in _get_gssapi_mechanism
+    import gssapi
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\__init__.py:29: in <module>
+    import gssapi._win_config  # noqa
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py:89: in <module>
+    configure_windows()
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py:85: in configure_windows
+    error_not_found()
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py:49: in error_not_found
+    raise OSError(
+E   OSError: Could not find KfW installation. Please download and install the 64bit Kerberos for Windows MSI from https://web.mit.edu/KERBEROS/dist and ensure the 'bin' folder (C:\Program Files\MIT\Kerberos\bin) is in your PATH.
+__ ERROR at setup of TestAnalyticsSummary.test_summary_returns_valid_schema ___
+..\tests\integration\test_analytics.py:22: in client
+    from main import app
+main.py:16: in <module>
+    from api.routes.analysis import router as analysis_router
+api\routes\analysis.py:35: in <module>
+    from services.pipeline import analyse_video as celery_analyse
+services\pipeline.py:16: in <module>
+    from celery import Celery
+<frozen importlib._bootstrap>:1412: in _handle_fromlist
+    ???
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\local.py:459: in __getattr__
+    module = __import__(self._object_origins[name], None, None,
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\app\__init__.py:2: in <module>
+    from celery import _state
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\_state.py:15: in <module>
+    from celery.utils.threads import LocalStack
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\utils\__init__.py:6: in <module>
+    from kombu.utils.objects import cached_property
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\utils\__init__.py:6: in <module>
+    from .compat import fileno, maybe_fileno, nested, register_after_fork
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\utils\compat.py:12: in <module>
+    from kombu.exceptions import reraise
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\exceptions.py:9: in <module>
+    from amqp import ChannelError, ConnectionError, ResourceError
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\__init__.py:31: in <module>
+    from .connection import Connection  # noqa
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\connection.py:13: in <module>
+    from . import __version__, sasl, spec
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\sasl.py:156: in <module>
+    GSSAPI = _get_gssapi_mechanism()
+             ^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\sasl.py:81: in _get_gssapi_mechanism
+    import gssapi
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\__init__.py:29: in <module>
+    import gssapi._win_config  # noqa
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py:89: in <module>
+    configure_windows()
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py:85: in configure_windows
+    error_not_found()
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py:49: in error_not_found
+    raise OSError(
+E   OSError: Could not find KfW installation. Please download and install the 64bit Kerberos for Windows MSI from https://web.mit.edu/KERBEROS/dist and ensure the 'bin' folder (C:\Program Files\MIT\Kerberos\bin) is in your PATH.
+___ ERROR at setup of TestAnalyticsSummary.test_summary_accepts_days_filter ___
+..\tests\integration\test_analytics.py:22: in client
+    from main import app
+main.py:16: in <module>
+    from api.routes.analysis import router as analysis_router
+api\routes\analysis.py:35: in <module>
+    from services.pipeline import analyse_video as celery_analyse
+services\pipeline.py:16: in <module>
+    from celery import Celery
+<frozen importlib._bootstrap>:1412: in _handle_fromlist
+    ???
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\local.py:459: in __getattr__
+    module = __import__(self._object_origins[name], None, None,
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\app\__init__.py:2: in <module>
+    from celery import _state
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\_state.py:15: in <module>
+    from celery.utils.threads import LocalStack
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\utils\__init__.py:6: in <module>
+    from kombu.utils.objects import cached_property
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\utils\__init__.py:6: in <module>
+    from .compat import fileno, maybe_fileno, nested, register_after_fork
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\utils\compat.py:12: in <module>
+    from kombu.exceptions import reraise
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\exceptions.py:9: in <module>
+    from amqp import ChannelError, ConnectionError, ResourceError
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\__init__.py:31: in <module>
+    from .connection import Connection  # noqa
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\connection.py:13: in <module>
+    from . import __version__, sasl, spec
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\sasl.py:156: in <module>
+    GSSAPI = _get_gssapi_mechanism()
+             ^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\sasl.py:81: in _get_gssapi_mechanism
+    import gssapi
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\__init__.py:29: in <module>
+    import gssapi._win_config  # noqa
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py:89: in <module>
+    configure_windows()
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py:85: in configure_windows
+    error_not_found()
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py:49: in error_not_found
+    raise OSError(
+E   OSError: Could not find KfW installation. Please download and install the 64bit Kerberos for Windows MSI from https://web.mit.edu/KERBEROS/dist and ensure the 'bin' folder (C:\Program Files\MIT\Kerberos\bin) is in your PATH.
+____ ERROR at setup of TestAnalyticsRecent.test_recent_endpoint_registered ____
+..\tests\integration\test_analytics.py:22: in client
+    from main import app
+main.py:16: in <module>
+    from api.routes.analysis import router as analysis_router
+api\routes\analysis.py:35: in <module>
+    from services.pipeline import analyse_video as celery_analyse
+services\pipeline.py:16: in <module>
+    from celery import Celery
+<frozen importlib._bootstrap>:1412: in _handle_fromlist
+    ???
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\local.py:459: in __getattr__
+    module = __import__(self._object_origins[name], None, None,
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\app\__init__.py:2: in <module>
+    from celery import _state
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\_state.py:15: in <module>
+    from celery.utils.threads import LocalStack
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\utils\__init__.py:6: in <module>
+    from kombu.utils.objects import cached_property
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\utils\__init__.py:6: in <module>
+    from .compat import fileno, maybe_fileno, nested, register_after_fork
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\utils\compat.py:12: in <module>
+    from kombu.exceptions import reraise
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\exceptions.py:9: in <module>
+    from amqp import ChannelError, ConnectionError, ResourceError
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\__init__.py:31: in <module>
+    from .connection import Connection  # noqa
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\connection.py:13: in <module>
+    from . import __version__, sasl, spec
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\sasl.py:156: in <module>
+    GSSAPI = _get_gssapi_mechanism()
+             ^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\sasl.py:81: in _get_gssapi_mechanism
+    import gssapi
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\__init__.py:29: in <module>
+    import gssapi._win_config  # noqa
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py:89: in <module>
+    configure_windows()
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py:85: in configure_windows
+    error_not_found()
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py:49: in error_not_found
+    raise OSError(
+E   OSError: Could not find KfW installation. Please download and install the 64bit Kerberos for Windows MSI from https://web.mit.edu/KERBEROS/dist and ensure the 'bin' folder (C:\Program Files\MIT\Kerberos\bin) is in your PATH.
+____ ERROR at setup of TestAnalyticsRecent.test_recent_accepts_limit_param ____
+..\tests\integration\test_analytics.py:22: in client
+    from main import app
+main.py:16: in <module>
+    from api.routes.analysis import router as analysis_router
+api\routes\analysis.py:35: in <module>
+    from services.pipeline import analyse_video as celery_analyse
+services\pipeline.py:16: in <module>
+    from celery import Celery
+<frozen importlib._bootstrap>:1412: in _handle_fromlist
+    ???
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\local.py:459: in __getattr__
+    module = __import__(self._object_origins[name], None, None,
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\app\__init__.py:2: in <module>
+    from celery import _state
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\_state.py:15: in <module>
+    from celery.utils.threads import LocalStack
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\utils\__init__.py:6: in <module>
+    from kombu.utils.objects import cached_property
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\utils\__init__.py:6: in <module>
+    from .compat import fileno, maybe_fileno, nested, register_after_fork
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\utils\compat.py:12: in <module>
+    from kombu.exceptions import reraise
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\exceptions.py:9: in <module>
+    from amqp import ChannelError, ConnectionError, ResourceError
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\__init__.py:31: in <module>
+    from .connection import Connection  # noqa
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\connection.py:13: in <module>
+    from . import __version__, sasl, spec
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\sasl.py:156: in <module>
+    GSSAPI = _get_gssapi_mechanism()
+             ^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\sasl.py:81: in _get_gssapi_mechanism
+    import gssapi
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\__init__.py:29: in <module>
+    import gssapi._win_config  # noqa
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py:89: in <module>
+    configure_windows()
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py:85: in configure_windows
+    error_not_found()
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py:49: in error_not_found
+    raise OSError(
+E   OSError: Could not find KfW installation. Please download and install the 64bit Kerberos for Windows MSI from https://web.mit.edu/KERBEROS/dist and ensure the 'bin' folder (C:\Program Files\MIT\Kerberos\bin) is in your PATH.
+__ ERROR at setup of TestAnalyticsRecent.test_recent_invalid_limit_rejected ___
+..\tests\integration\test_analytics.py:22: in client
+    from main import app
+main.py:16: in <module>
+    from api.routes.analysis import router as analysis_router
+api\routes\analysis.py:35: in <module>
+    from services.pipeline import analyse_video as celery_analyse
+services\pipeline.py:16: in <module>
+    from celery import Celery
+<frozen importlib._bootstrap>:1412: in _handle_fromlist
+    ???
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\local.py:459: in __getattr__
+    module = __import__(self._object_origins[name], None, None,
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\app\__init__.py:2: in <module>
+    from celery import _state
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\_state.py:15: in <module>
+    from celery.utils.threads import LocalStack
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\utils\__init__.py:6: in <module>
+    from kombu.utils.objects import cached_property
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\utils\__init__.py:6: in <module>
+    from .compat import fileno, maybe_fileno, nested, register_after_fork
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\utils\compat.py:12: in <module>
+    from kombu.exceptions import reraise
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\exceptions.py:9: in <module>
+    from amqp import ChannelError, ConnectionError, ResourceError
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\__init__.py:31: in <module>
+    from .connection import Connection  # noqa
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\connection.py:13: in <module>
+    from . import __version__, sasl, spec
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\sasl.py:156: in <module>
+    GSSAPI = _get_gssapi_mechanism()
+             ^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\sasl.py:81: in _get_gssapi_mechanism
+    import gssapi
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\__init__.py:29: in <module>
+    import gssapi._win_config  # noqa
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py:89: in <module>
+    configure_windows()
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py:85: in configure_windows
+    error_not_found()
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py:49: in error_not_found
+    raise OSError(
+E   OSError: Could not find KfW installation. Please download and install the 64bit Kerberos for Windows MSI from https://web.mit.edu/KERBEROS/dist and ensure the 'bin' folder (C:\Program Files\MIT\Kerberos\bin) is in your PATH.
+_ ERROR at setup of TestAnalyticsProcessingTimes.test_processing_times_endpoint_registered _
+..\tests\integration\test_analytics.py:22: in client
+    from main import app
+main.py:16: in <module>
+    from api.routes.analysis import router as analysis_router
+api\routes\analysis.py:35: in <module>
+    from services.pipeline import analyse_video as celery_analyse
+services\pipeline.py:16: in <module>
+    from celery import Celery
+<frozen importlib._bootstrap>:1412: in _handle_fromlist
+    ???
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\local.py:459: in __getattr__
+    module = __import__(self._object_origins[name], None, None,
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\app\__init__.py:2: in <module>
+    from celery import _state
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\_state.py:15: in <module>
+    from celery.utils.threads import LocalStack
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\utils\__init__.py:6: in <module>
+    from kombu.utils.objects import cached_property
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\utils\__init__.py:6: in <module>
+    from .compat import fileno, maybe_fileno, nested, register_after_fork
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\utils\compat.py:12: in <module>
+    from kombu.exceptions import reraise
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\exceptions.py:9: in <module>
+    from amqp import ChannelError, ConnectionError, ResourceError
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\__init__.py:31: in <module>
+    from .connection import Connection  # noqa
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\connection.py:13: in <module>
+    from . import __version__, sasl, spec
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\sasl.py:156: in <module>
+    GSSAPI = _get_gssapi_mechanism()
+             ^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\sasl.py:81: in _get_gssapi_mechanism
+    import gssapi
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\__init__.py:29: in <module>
+    import gssapi._win_config  # noqa
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py:89: in <module>
+    configure_windows()
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py:85: in configure_windows
+    error_not_found()
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py:49: in error_not_found
+    raise OSError(
+E   OSError: Could not find KfW installation. Please download and install the 64bit Kerberos for Windows MSI from https://web.mit.edu/KERBEROS/dist and ensure the 'bin' folder (C:\Program Files\MIT\Kerberos\bin) is in your PATH.
+_________ ERROR at setup of TestRegister.test_missing_fields_rejected _________
+..\tests\integration\test_auth.py:19: in client
+    from main import app
+main.py:16: in <module>
+    from api.routes.analysis import router as analysis_router
+api\routes\analysis.py:35: in <module>
+    from services.pipeline import analyse_video as celery_analyse
+services\pipeline.py:16: in <module>
+    from celery import Celery
+<frozen importlib._bootstrap>:1412: in _handle_fromlist
+    ???
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\local.py:459: in __getattr__
+    module = __import__(self._object_origins[name], None, None,
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\app\__init__.py:2: in <module>
+    from celery import _state
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\_state.py:15: in <module>
+    from celery.utils.threads import LocalStack
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\utils\__init__.py:6: in <module>
+    from kombu.utils.objects import cached_property
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\utils\__init__.py:6: in <module>
+    from .compat import fileno, maybe_fileno, nested, register_after_fork
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\utils\compat.py:12: in <module>
+    from kombu.exceptions import reraise
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\exceptions.py:9: in <module>
+    from amqp import ChannelError, ConnectionError, ResourceError
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\__init__.py:31: in <module>
+    from .connection import Connection  # noqa
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\connection.py:13: in <module>
+    from . import __version__, sasl, spec
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\sasl.py:156: in <module>
+    GSSAPI = _get_gssapi_mechanism()
+             ^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\sasl.py:81: in _get_gssapi_mechanism
+    import gssapi
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\__init__.py:29: in <module>
+    import gssapi._win_config  # noqa
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py:89: in <module>
+    configure_windows()
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py:85: in configure_windows
+    error_not_found()
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py:49: in error_not_found
+    raise OSError(
+E   OSError: Could not find KfW installation. Please download and install the 64bit Kerberos for Windows MSI from https://web.mit.edu/KERBEROS/dist and ensure the 'bin' folder (C:\Program Files\MIT\Kerberos\bin) is in your PATH.
+_________ ERROR at setup of TestRegister.test_invalid_email_rejected __________
+..\tests\integration\test_auth.py:19: in client
+    from main import app
+main.py:16: in <module>
+    from api.routes.analysis import router as analysis_router
+api\routes\analysis.py:35: in <module>
+    from services.pipeline import analyse_video as celery_analyse
+services\pipeline.py:16: in <module>
+    from celery import Celery
+<frozen importlib._bootstrap>:1412: in _handle_fromlist
+    ???
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\local.py:459: in __getattr__
+    module = __import__(self._object_origins[name], None, None,
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\app\__init__.py:2: in <module>
+    from celery import _state
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\_state.py:15: in <module>
+    from celery.utils.threads import LocalStack
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\utils\__init__.py:6: in <module>
+    from kombu.utils.objects import cached_property
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\utils\__init__.py:6: in <module>
+    from .compat import fileno, maybe_fileno, nested, register_after_fork
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\utils\compat.py:12: in <module>
+    from kombu.exceptions import reraise
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\exceptions.py:9: in <module>
+    from amqp import ChannelError, ConnectionError, ResourceError
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\__init__.py:31: in <module>
+    from .connection import Connection  # noqa
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\connection.py:13: in <module>
+    from . import __version__, sasl, spec
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\sasl.py:156: in <module>
+    GSSAPI = _get_gssapi_mechanism()
+             ^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\sasl.py:81: in _get_gssapi_mechanism
+    import gssapi
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\__init__.py:29: in <module>
+    import gssapi._win_config  # noqa
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py:89: in <module>
+    configure_windows()
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py:85: in configure_windows
+    error_not_found()
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py:49: in error_not_found
+    raise OSError(
+E   OSError: Could not find KfW installation. Please download and install the 64bit Kerberos for Windows MSI from https://web.mit.edu/KERBEROS/dist and ensure the 'bin' folder (C:\Program Files\MIT\Kerberos\bin) is in your PATH.
+_________ ERROR at setup of TestRegister.test_short_password_rejected _________
+..\tests\integration\test_auth.py:19: in client
+    from main import app
+main.py:16: in <module>
+    from api.routes.analysis import router as analysis_router
+api\routes\analysis.py:35: in <module>
+    from services.pipeline import analyse_video as celery_analyse
+services\pipeline.py:16: in <module>
+    from celery import Celery
+<frozen importlib._bootstrap>:1412: in _handle_fromlist
+    ???
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\local.py:459: in __getattr__
+    module = __import__(self._object_origins[name], None, None,
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\app\__init__.py:2: in <module>
+    from celery import _state
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\_state.py:15: in <module>
+    from celery.utils.threads import LocalStack
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\utils\__init__.py:6: in <module>
+    from kombu.utils.objects import cached_property
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\utils\__init__.py:6: in <module>
+    from .compat import fileno, maybe_fileno, nested, register_after_fork
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\utils\compat.py:12: in <module>
+    from kombu.exceptions import reraise
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\exceptions.py:9: in <module>
+    from amqp import ChannelError, ConnectionError, ResourceError
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\__init__.py:31: in <module>
+    from .connection import Connection  # noqa
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\connection.py:13: in <module>
+    from . import __version__, sasl, spec
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\sasl.py:156: in <module>
+    GSSAPI = _get_gssapi_mechanism()
+             ^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\sasl.py:81: in _get_gssapi_mechanism
+    import gssapi
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\__init__.py:29: in <module>
+    import gssapi._win_config  # noqa
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py:89: in <module>
+    configure_windows()
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py:85: in configure_windows
+    error_not_found()
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py:49: in error_not_found
+    raise OSError(
+E   OSError: Could not find KfW installation. Please download and install the 64bit Kerberos for Windows MSI from https://web.mit.edu/KERBEROS/dist and ensure the 'bin' folder (C:\Program Files\MIT\Kerberos\bin) is in your PATH.
+______ ERROR at setup of TestRegister.test_valid_registration_reaches_db ______
+..\tests\integration\test_auth.py:19: in client
+    from main import app
+main.py:16: in <module>
+    from api.routes.analysis import router as analysis_router
+api\routes\analysis.py:35: in <module>
+    from services.pipeline import analyse_video as celery_analyse
+services\pipeline.py:16: in <module>
+    from celery import Celery
+<frozen importlib._bootstrap>:1412: in _handle_fromlist
+    ???
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\local.py:459: in __getattr__
+    module = __import__(self._object_origins[name], None, None,
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\app\__init__.py:2: in <module>
+    from celery import _state
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\_state.py:15: in <module>
+    from celery.utils.threads import LocalStack
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\utils\__init__.py:6: in <module>
+    from kombu.utils.objects import cached_property
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\utils\__init__.py:6: in <module>
+    from .compat import fileno, maybe_fileno, nested, register_after_fork
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\utils\compat.py:12: in <module>
+    from kombu.exceptions import reraise
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\exceptions.py:9: in <module>
+    from amqp import ChannelError, ConnectionError, ResourceError
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\__init__.py:31: in <module>
+    from .connection import Connection  # noqa
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\connection.py:13: in <module>
+    from . import __version__, sasl, spec
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\sasl.py:156: in <module>
+    GSSAPI = _get_gssapi_mechanism()
+             ^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\sasl.py:81: in _get_gssapi_mechanism
+    import gssapi
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\__init__.py:29: in <module>
+    import gssapi._win_config  # noqa
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py:89: in <module>
+    configure_windows()
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py:85: in configure_windows
+    error_not_found()
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py:49: in error_not_found
+    raise OSError(
+E   OSError: Could not find KfW installation. Please download and install the 64bit Kerberos for Windows MSI from https://web.mit.edu/KERBEROS/dist and ensure the 'bin' folder (C:\Program Files\MIT\Kerberos\bin) is in your PATH.
+_________ ERROR at setup of TestLogin.test_invalid_credentials_format _________
+..\tests\integration\test_auth.py:19: in client
+    from main import app
+main.py:16: in <module>
+    from api.routes.analysis import router as analysis_router
+api\routes\analysis.py:35: in <module>
+    from services.pipeline import analyse_video as celery_analyse
+services\pipeline.py:16: in <module>
+    from celery import Celery
+<frozen importlib._bootstrap>:1412: in _handle_fromlist
+    ???
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\local.py:459: in __getattr__
+    module = __import__(self._object_origins[name], None, None,
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\app\__init__.py:2: in <module>
+    from celery import _state
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\_state.py:15: in <module>
+    from celery.utils.threads import LocalStack
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\utils\__init__.py:6: in <module>
+    from kombu.utils.objects import cached_property
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\utils\__init__.py:6: in <module>
+    from .compat import fileno, maybe_fileno, nested, register_after_fork
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\utils\compat.py:12: in <module>
+    from kombu.exceptions import reraise
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\exceptions.py:9: in <module>
+    from amqp import ChannelError, ConnectionError, ResourceError
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\__init__.py:31: in <module>
+    from .connection import Connection  # noqa
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\connection.py:13: in <module>
+    from . import __version__, sasl, spec
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\sasl.py:156: in <module>
+    GSSAPI = _get_gssapi_mechanism()
+             ^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\sasl.py:81: in _get_gssapi_mechanism
+    import gssapi
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\__init__.py:29: in <module>
+    import gssapi._win_config  # noqa
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py:89: in <module>
+    configure_windows()
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py:85: in configure_windows
+    error_not_found()
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py:49: in error_not_found
+    raise OSError(
+E   OSError: Could not find KfW installation. Please download and install the 64bit Kerberos for Windows MSI from https://web.mit.edu/KERBEROS/dist and ensure the 'bin' folder (C:\Program Files\MIT\Kerberos\bin) is in your PATH.
+___________ ERROR at setup of TestLogin.test_login_endpoint_exists ____________
+..\tests\integration\test_auth.py:19: in client
+    from main import app
+main.py:16: in <module>
+    from api.routes.analysis import router as analysis_router
+api\routes\analysis.py:35: in <module>
+    from services.pipeline import analyse_video as celery_analyse
+services\pipeline.py:16: in <module>
+    from celery import Celery
+<frozen importlib._bootstrap>:1412: in _handle_fromlist
+    ???
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\local.py:459: in __getattr__
+    module = __import__(self._object_origins[name], None, None,
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\app\__init__.py:2: in <module>
+    from celery import _state
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\_state.py:15: in <module>
+    from celery.utils.threads import LocalStack
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\utils\__init__.py:6: in <module>
+    from kombu.utils.objects import cached_property
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\utils\__init__.py:6: in <module>
+    from .compat import fileno, maybe_fileno, nested, register_after_fork
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\utils\compat.py:12: in <module>
+    from kombu.exceptions import reraise
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\exceptions.py:9: in <module>
+    from amqp import ChannelError, ConnectionError, ResourceError
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\__init__.py:31: in <module>
+    from .connection import Connection  # noqa
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\connection.py:13: in <module>
+    from . import __version__, sasl, spec
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\sasl.py:156: in <module>
+    GSSAPI = _get_gssapi_mechanism()
+             ^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\sasl.py:81: in _get_gssapi_mechanism
+    import gssapi
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\__init__.py:29: in <module>
+    import gssapi._win_config  # noqa
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py:89: in <module>
+    configure_windows()
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py:85: in configure_windows
+    error_not_found()
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py:49: in error_not_found
+    raise OSError(
+E   OSError: Could not find KfW installation. Please download and install the 64bit Kerberos for Windows MSI from https://web.mit.edu/KERBEROS/dist and ensure the 'bin' folder (C:\Program Files\MIT\Kerberos\bin) is in your PATH.
+___ ERROR at setup of TestTokenRefresh.test_refresh_without_token_rejected ____
+..\tests\integration\test_auth.py:19: in client
+    from main import app
+main.py:16: in <module>
+    from api.routes.analysis import router as analysis_router
+api\routes\analysis.py:35: in <module>
+    from services.pipeline import analyse_video as celery_analyse
+services\pipeline.py:16: in <module>
+    from celery import Celery
+<frozen importlib._bootstrap>:1412: in _handle_fromlist
+    ???
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\local.py:459: in __getattr__
+    module = __import__(self._object_origins[name], None, None,
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\app\__init__.py:2: in <module>
+    from celery import _state
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\_state.py:15: in <module>
+    from celery.utils.threads import LocalStack
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\utils\__init__.py:6: in <module>
+    from kombu.utils.objects import cached_property
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\utils\__init__.py:6: in <module>
+    from .compat import fileno, maybe_fileno, nested, register_after_fork
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\utils\compat.py:12: in <module>
+    from kombu.exceptions import reraise
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\exceptions.py:9: in <module>
+    from amqp import ChannelError, ConnectionError, ResourceError
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\__init__.py:31: in <module>
+    from .connection import Connection  # noqa
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\connection.py:13: in <module>
+    from . import __version__, sasl, spec
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\sasl.py:156: in <module>
+    GSSAPI = _get_gssapi_mechanism()
+             ^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\sasl.py:81: in _get_gssapi_mechanism
+    import gssapi
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\__init__.py:29: in <module>
+    import gssapi._win_config  # noqa
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py:89: in <module>
+    configure_windows()
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py:85: in configure_windows
+    error_not_found()
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py:49: in error_not_found
+    raise OSError(
+E   OSError: Could not find KfW installation. Please download and install the 64bit Kerberos for Windows MSI from https://web.mit.edu/KERBEROS/dist and ensure the 'bin' folder (C:\Program Files\MIT\Kerberos\bin) is in your PATH.
+_________ ERROR at setup of TestMe.test_me_without_token_returns_401 __________
+..\tests\integration\test_auth.py:19: in client
+    from main import app
+main.py:16: in <module>
+    from api.routes.analysis import router as analysis_router
+api\routes\analysis.py:35: in <module>
+    from services.pipeline import analyse_video as celery_analyse
+services\pipeline.py:16: in <module>
+    from celery import Celery
+<frozen importlib._bootstrap>:1412: in _handle_fromlist
+    ???
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\local.py:459: in __getattr__
+    module = __import__(self._object_origins[name], None, None,
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\app\__init__.py:2: in <module>
+    from celery import _state
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\_state.py:15: in <module>
+    from celery.utils.threads import LocalStack
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\utils\__init__.py:6: in <module>
+    from kombu.utils.objects import cached_property
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\utils\__init__.py:6: in <module>
+    from .compat import fileno, maybe_fileno, nested, register_after_fork
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\utils\compat.py:12: in <module>
+    from kombu.exceptions import reraise
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\exceptions.py:9: in <module>
+    from amqp import ChannelError, ConnectionError, ResourceError
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\__init__.py:31: in <module>
+    from .connection import Connection  # noqa
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\connection.py:13: in <module>
+    from . import __version__, sasl, spec
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\sasl.py:156: in <module>
+    GSSAPI = _get_gssapi_mechanism()
+             ^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\sasl.py:81: in _get_gssapi_mechanism
+    import gssapi
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\__init__.py:29: in <module>
+    import gssapi._win_config  # noqa
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py:89: in <module>
+    configure_windows()
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py:85: in configure_windows
+    error_not_found()
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py:49: in error_not_found
+    raise OSError(
+E   OSError: Could not find KfW installation. Please download and install the 64bit Kerberos for Windows MSI from https://web.mit.edu/KERBEROS/dist and ensure the 'bin' folder (C:\Program Files\MIT\Kerberos\bin) is in your PATH.
+_______ ERROR at setup of TestMe.test_me_with_invalid_token_returns_401 _______
+..\tests\integration\test_auth.py:19: in client
+    from main import app
+main.py:16: in <module>
+    from api.routes.analysis import router as analysis_router
+api\routes\analysis.py:35: in <module>
+    from services.pipeline import analyse_video as celery_analyse
+services\pipeline.py:16: in <module>
+    from celery import Celery
+<frozen importlib._bootstrap>:1412: in _handle_fromlist
+    ???
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\local.py:459: in __getattr__
+    module = __import__(self._object_origins[name], None, None,
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\app\__init__.py:2: in <module>
+    from celery import _state
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\_state.py:15: in <module>
+    from celery.utils.threads import LocalStack
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\utils\__init__.py:6: in <module>
+    from kombu.utils.objects import cached_property
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\utils\__init__.py:6: in <module>
+    from .compat import fileno, maybe_fileno, nested, register_after_fork
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\utils\compat.py:12: in <module>
+    from kombu.exceptions import reraise
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\exceptions.py:9: in <module>
+    from amqp import ChannelError, ConnectionError, ResourceError
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\__init__.py:31: in <module>
+    from .connection import Connection  # noqa
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\connection.py:13: in <module>
+    from . import __version__, sasl, spec
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\sasl.py:156: in <module>
+    GSSAPI = _get_gssapi_mechanism()
+             ^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\sasl.py:81: in _get_gssapi_mechanism
+    import gssapi
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\__init__.py:29: in <module>
+    import gssapi._win_config  # noqa
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py:89: in <module>
+    configure_windows()
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py:85: in configure_windows
+    error_not_found()
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py:49: in error_not_found
+    raise OSError(
+E   OSError: Could not find KfW installation. Please download and install the 64bit Kerberos for Windows MSI from https://web.mit.edu/KERBEROS/dist and ensure the 'bin' folder (C:\Program Files\MIT\Kerberos\bin) is in your PATH.
+=========================== short test summary info ===========================
+ERROR ..\tests\integration\test_analytics.py::TestAnalyticsSummary::test_summary_endpoint_registered
+ERROR ..\tests\integration\test_analytics.py::TestAnalyticsSummary::test_summary_returns_valid_schema
+ERROR ..\tests\integration\test_analytics.py::TestAnalyticsSummary::test_summary_accepts_days_filter
+ERROR ..\tests\integration\test_analytics.py::TestAnalyticsRecent::test_recent_endpoint_registered
+ERROR ..\tests\integration\test_analytics.py::TestAnalyticsRecent::test_recent_accepts_limit_param
+ERROR ..\tests\integration\test_analytics.py::TestAnalyticsRecent::test_recent_invalid_limit_rejected
+ERROR ..\tests\integration\test_analytics.py::TestAnalyticsProcessingTimes::test_processing_times_endpoint_registered
+ERROR ..\tests\integration\test_auth.py::TestRegister::test_missing_fields_rejected
+ERROR ..\tests\integration\test_auth.py::TestRegister::test_invalid_email_rejected
+ERROR ..\tests\integration\test_auth.py::TestRegister::test_short_password_rejected
+ERROR ..\tests\integration\test_auth.py::TestRegister::test_valid_registration_reaches_db
+ERROR ..\tests\integration\test_auth.py::TestLogin::test_invalid_credentials_format
+ERROR ..\tests\integration\test_auth.py::TestLogin::test_login_endpoint_exists
+ERROR ..\tests\integration\test_auth.py::TestTokenRefresh::test_refresh_without_token_rejected
+ERROR ..\tests\integration\test_auth.py::TestMe::test_me_without_token_returns_401
+ERROR ..\tests\integration\test_auth.py::TestMe::test_me_with_invalid_token_returns_401

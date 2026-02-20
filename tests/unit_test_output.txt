@@ -1,0 +1,17 @@
+
+=================================== ERRORS ====================================
+_______________ ERROR collecting tests/unit/test_extraction.py ________________
+ImportError while importing test module 'D:\projects\youtube-classifier\tests\unit\test_extraction.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\tests\unit\test_extraction.py:8: in <module>
+    from services.extraction.extractors import (
+services\extraction\extractors.py:17: in <module>
+    from loguru import logger
+E   ModuleNotFoundError: No module named 'loguru'
+=========================== short test summary info ===========================
+ERROR ..\tests\unit\test_extraction.py
+!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!

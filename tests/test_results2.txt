@@ -1,0 +1,179 @@
+.................sssssEEEEEEEEEEEEEEEE                                   [100%]
+=================================== ERRORS ====================================
+___ ERROR at setup of TestAnalyticsSummary.test_summary_endpoint_registered ___
+..\tests\integration\test_analytics.py:22: in client
+    from main import app
+main.py:16: in <module>
+    from api.routes.analysis import router as analysis_router
+api\routes\analysis.py:34: in <module>
+    from services.video_processor.downloader import extract_video_id
+services\video_processor\downloader.py:16: in <module>
+    import yt_dlp
+E   ModuleNotFoundError: No module named 'yt_dlp'
+__ ERROR at setup of TestAnalyticsSummary.test_summary_returns_valid_schema ___
+..\tests\integration\test_analytics.py:22: in client
+    from main import app
+main.py:16: in <module>
+    from api.routes.analysis import router as analysis_router
+api\routes\analysis.py:34: in <module>
+    from services.video_processor.downloader import extract_video_id
+services\video_processor\downloader.py:16: in <module>
+    import yt_dlp
+E   ModuleNotFoundError: No module named 'yt_dlp'
+___ ERROR at setup of TestAnalyticsSummary.test_summary_accepts_days_filter ___
+..\tests\integration\test_analytics.py:22: in client
+    from main import app
+main.py:16: in <module>
+    from api.routes.analysis import router as analysis_router
+api\routes\analysis.py:34: in <module>
+    from services.video_processor.downloader import extract_video_id
+services\video_processor\downloader.py:16: in <module>
+    import yt_dlp
+E   ModuleNotFoundError: No module named 'yt_dlp'
+____ ERROR at setup of TestAnalyticsRecent.test_recent_endpoint_registered ____
+..\tests\integration\test_analytics.py:22: in client
+    from main import app
+main.py:16: in <module>
+    from api.routes.analysis import router as analysis_router
+api\routes\analysis.py:34: in <module>
+    from services.video_processor.downloader import extract_video_id
+services\video_processor\downloader.py:16: in <module>
+    import yt_dlp
+E   ModuleNotFoundError: No module named 'yt_dlp'
+____ ERROR at setup of TestAnalyticsRecent.test_recent_accepts_limit_param ____
+..\tests\integration\test_analytics.py:22: in client
+    from main import app
+main.py:16: in <module>
+    from api.routes.analysis import router as analysis_router
+api\routes\analysis.py:34: in <module>
+    from services.video_processor.downloader import extract_video_id
+services\video_processor\downloader.py:16: in <module>
+    import yt_dlp
+E   ModuleNotFoundError: No module named 'yt_dlp'
+__ ERROR at setup of TestAnalyticsRecent.test_recent_invalid_limit_rejected ___
+..\tests\integration\test_analytics.py:22: in client
+    from main import app
+main.py:16: in <module>
+    from api.routes.analysis import router as analysis_router
+api\routes\analysis.py:34: in <module>
+    from services.video_processor.downloader import extract_video_id
+services\video_processor\downloader.py:16: in <module>
+    import yt_dlp
+E   ModuleNotFoundError: No module named 'yt_dlp'
+_ ERROR at setup of TestAnalyticsProcessingTimes.test_processing_times_endpoint_registered _
+..\tests\integration\test_analytics.py:22: in client
+    from main import app
+main.py:16: in <module>
+    from api.routes.analysis import router as analysis_router
+api\routes\analysis.py:34: in <module>
+    from services.video_processor.downloader import extract_video_id
+services\video_processor\downloader.py:16: in <module>
+    import yt_dlp
+E   ModuleNotFoundError: No module named 'yt_dlp'
+_________ ERROR at setup of TestRegister.test_missing_fields_rejected _________
+..\tests\integration\test_auth.py:19: in client
+    from main import app
+main.py:16: in <module>
+    from api.routes.analysis import router as analysis_router
+api\routes\analysis.py:34: in <module>
+    from services.video_processor.downloader import extract_video_id
+services\video_processor\downloader.py:16: in <module>
+    import yt_dlp
+E   ModuleNotFoundError: No module named 'yt_dlp'
+_________ ERROR at setup of TestRegister.test_invalid_email_rejected __________
+..\tests\integration\test_auth.py:19: in client
+    from main import app
+main.py:16: in <module>
+    from api.routes.analysis import router as analysis_router
+api\routes\analysis.py:34: in <module>
+    from services.video_processor.downloader import extract_video_id
+services\video_processor\downloader.py:16: in <module>
+    import yt_dlp
+E   ModuleNotFoundError: No module named 'yt_dlp'
+_________ ERROR at setup of TestRegister.test_short_password_rejected _________
+..\tests\integration\test_auth.py:19: in client
+    from main import app
+main.py:16: in <module>
+    from api.routes.analysis import router as analysis_router
+api\routes\analysis.py:34: in <module>
+    from services.video_processor.downloader import extract_video_id
+services\video_processor\downloader.py:16: in <module>
+    import yt_dlp
+E   ModuleNotFoundError: No module named 'yt_dlp'
+______ ERROR at setup of TestRegister.test_valid_registration_reaches_db ______
+..\tests\integration\test_auth.py:19: in client
+    from main import app
+main.py:16: in <module>
+    from api.routes.analysis import router as analysis_router
+api\routes\analysis.py:34: in <module>
+    from services.video_processor.downloader import extract_video_id
+services\video_processor\downloader.py:16: in <module>
+    import yt_dlp
+E   ModuleNotFoundError: No module named 'yt_dlp'
+_________ ERROR at setup of TestLogin.test_invalid_credentials_format _________
+..\tests\integration\test_auth.py:19: in client
+    from main import app
+main.py:16: in <module>
+    from api.routes.analysis import router as analysis_router
+api\routes\analysis.py:34: in <module>
+    from services.video_processor.downloader import extract_video_id
+services\video_processor\downloader.py:16: in <module>
+    import yt_dlp
+E   ModuleNotFoundError: No module named 'yt_dlp'
+___________ ERROR at setup of TestLogin.test_login_endpoint_exists ____________
+..\tests\integration\test_auth.py:19: in client
+    from main import app
+main.py:16: in <module>
+    from api.routes.analysis import router as analysis_router
+api\routes\analysis.py:34: in <module>
+    from services.video_processor.downloader import extract_video_id
+services\video_processor\downloader.py:16: in <module>
+    import yt_dlp
+E   ModuleNotFoundError: No module named 'yt_dlp'
+___ ERROR at setup of TestTokenRefresh.test_refresh_without_token_rejected ____
+..\tests\integration\test_auth.py:19: in client
+    from main import app
+main.py:16: in <module>
+    from api.routes.analysis import router as analysis_router
+api\routes\analysis.py:34: in <module>
+    from services.video_processor.downloader import extract_video_id
+services\video_processor\downloader.py:16: in <module>
+    import yt_dlp
+E   ModuleNotFoundError: No module named 'yt_dlp'
+_________ ERROR at setup of TestMe.test_me_without_token_returns_401 __________
+..\tests\integration\test_auth.py:19: in client
+    from main import app
+main.py:16: in <module>
+    from api.routes.analysis import router as analysis_router
+api\routes\analysis.py:34: in <module>
+    from services.video_processor.downloader import extract_video_id
+services\video_processor\downloader.py:16: in <module>
+    import yt_dlp
+E   ModuleNotFoundError: No module named 'yt_dlp'
+_______ ERROR at setup of TestMe.test_me_with_invalid_token_returns_401 _______
+..\tests\integration\test_auth.py:19: in client
+    from main import app
+main.py:16: in <module>
+    from api.routes.analysis import router as analysis_router
+api\routes\analysis.py:34: in <module>
+    from services.video_processor.downloader import extract_video_id
+services\video_processor\downloader.py:16: in <module>
+    import yt_dlp
+E   ModuleNotFoundError: No module named 'yt_dlp'
+=========================== short test summary info ===========================
+ERROR ..\tests\integration\test_analytics.py::TestAnalyticsSummary::test_summary_endpoint_registered
+ERROR ..\tests\integration\test_analytics.py::TestAnalyticsSummary::test_summary_returns_valid_schema
+ERROR ..\tests\integration\test_analytics.py::TestAnalyticsSummary::test_summary_accepts_days_filter
+ERROR ..\tests\integration\test_analytics.py::TestAnalyticsRecent::test_recent_endpoint_registered
+ERROR ..\tests\integration\test_analytics.py::TestAnalyticsRecent::test_recent_accepts_limit_param
+ERROR ..\tests\integration\test_analytics.py::TestAnalyticsRecent::test_recent_invalid_limit_rejected
+ERROR ..\tests\integration\test_analytics.py::TestAnalyticsProcessingTimes::test_processing_times_endpoint_registered
+ERROR ..\tests\integration\test_auth.py::TestRegister::test_missing_fields_rejected
+ERROR ..\tests\integration\test_auth.py::TestRegister::test_invalid_email_rejected
+ERROR ..\tests\integration\test_auth.py::TestRegister::test_short_password_rejected
+ERROR ..\tests\integration\test_auth.py::TestRegister::test_valid_registration_reaches_db
+ERROR ..\tests\integration\test_auth.py::TestLogin::test_invalid_credentials_format
+ERROR ..\tests\integration\test_auth.py::TestLogin::test_login_endpoint_exists
+ERROR ..\tests\integration\test_auth.py::TestTokenRefresh::test_refresh_without_token_rejected
+ERROR ..\tests\integration\test_auth.py::TestMe::test_me_without_token_returns_401
+ERROR ..\tests\integration\test_auth.py::TestMe::test_me_with_invalid_token_returns_401

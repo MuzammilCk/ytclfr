@@ -1,0 +1,179 @@
+.................FFFFFEEEEEEEEEEEEEEEE                                   [100%]
+=================================== ERRORS ====================================
+___ ERROR at setup of TestAnalyticsSummary.test_summary_endpoint_registered ___
+..\tests\integration\test_analytics.py:22: in client
+    from main import app
+main.py:12: in <module>
+    from prometheus_fastapi_instrumentator import Instrumentator
+E   ModuleNotFoundError: No module named 'prometheus_fastapi_instrumentator'
+__ ERROR at setup of TestAnalyticsSummary.test_summary_returns_valid_schema ___
+..\tests\integration\test_analytics.py:22: in client
+    from main import app
+main.py:12: in <module>
+    from prometheus_fastapi_instrumentator import Instrumentator
+E   ModuleNotFoundError: No module named 'prometheus_fastapi_instrumentator'
+___ ERROR at setup of TestAnalyticsSummary.test_summary_accepts_days_filter ___
+..\tests\integration\test_analytics.py:22: in client
+    from main import app
+main.py:12: in <module>
+    from prometheus_fastapi_instrumentator import Instrumentator
+E   ModuleNotFoundError: No module named 'prometheus_fastapi_instrumentator'
+____ ERROR at setup of TestAnalyticsRecent.test_recent_endpoint_registered ____
+..\tests\integration\test_analytics.py:22: in client
+    from main import app
+main.py:12: in <module>
+    from prometheus_fastapi_instrumentator import Instrumentator
+E   ModuleNotFoundError: No module named 'prometheus_fastapi_instrumentator'
+____ ERROR at setup of TestAnalyticsRecent.test_recent_accepts_limit_param ____
+..\tests\integration\test_analytics.py:22: in client
+    from main import app
+main.py:12: in <module>
+    from prometheus_fastapi_instrumentator import Instrumentator
+E   ModuleNotFoundError: No module named 'prometheus_fastapi_instrumentator'
+__ ERROR at setup of TestAnalyticsRecent.test_recent_invalid_limit_rejected ___
+..\tests\integration\test_analytics.py:22: in client
+    from main import app
+main.py:12: in <module>
+    from prometheus_fastapi_instrumentator import Instrumentator
+E   ModuleNotFoundError: No module named 'prometheus_fastapi_instrumentator'
+_ ERROR at setup of TestAnalyticsProcessingTimes.test_processing_times_endpoint_registered _
+..\tests\integration\test_analytics.py:22: in client
+    from main import app
+main.py:12: in <module>
+    from prometheus_fastapi_instrumentator import Instrumentator
+E   ModuleNotFoundError: No module named 'prometheus_fastapi_instrumentator'
+_________ ERROR at setup of TestRegister.test_missing_fields_rejected _________
+..\tests\integration\test_auth.py:19: in client
+    from main import app
+main.py:12: in <module>
+    from prometheus_fastapi_instrumentator import Instrumentator
+E   ModuleNotFoundError: No module named 'prometheus_fastapi_instrumentator'
+_________ ERROR at setup of TestRegister.test_invalid_email_rejected __________
+..\tests\integration\test_auth.py:19: in client
+    from main import app
+main.py:12: in <module>
+    from prometheus_fastapi_instrumentator import Instrumentator
+E   ModuleNotFoundError: No module named 'prometheus_fastapi_instrumentator'
+_________ ERROR at setup of TestRegister.test_short_password_rejected _________
+..\tests\integration\test_auth.py:19: in client
+    from main import app
+main.py:12: in <module>
+    from prometheus_fastapi_instrumentator import Instrumentator
+E   ModuleNotFoundError: No module named 'prometheus_fastapi_instrumentator'
+______ ERROR at setup of TestRegister.test_valid_registration_reaches_db ______
+..\tests\integration\test_auth.py:19: in client
+    from main import app
+main.py:12: in <module>
+    from prometheus_fastapi_instrumentator import Instrumentator
+E   ModuleNotFoundError: No module named 'prometheus_fastapi_instrumentator'
+_________ ERROR at setup of TestLogin.test_invalid_credentials_format _________
+..\tests\integration\test_auth.py:19: in client
+    from main import app
+main.py:12: in <module>
+    from prometheus_fastapi_instrumentator import Instrumentator
+E   ModuleNotFoundError: No module named 'prometheus_fastapi_instrumentator'
+___________ ERROR at setup of TestLogin.test_login_endpoint_exists ____________
+..\tests\integration\test_auth.py:19: in client
+    from main import app
+main.py:12: in <module>
+    from prometheus_fastapi_instrumentator import Instrumentator
+E   ModuleNotFoundError: No module named 'prometheus_fastapi_instrumentator'
+___ ERROR at setup of TestTokenRefresh.test_refresh_without_token_rejected ____
+..\tests\integration\test_auth.py:19: in client
+    from main import app
+main.py:12: in <module>
+    from prometheus_fastapi_instrumentator import Instrumentator
+E   ModuleNotFoundError: No module named 'prometheus_fastapi_instrumentator'
+_________ ERROR at setup of TestMe.test_me_without_token_returns_401 __________
+..\tests\integration\test_auth.py:19: in client
+    from main import app
+main.py:12: in <module>
+    from prometheus_fastapi_instrumentator import Instrumentator
+E   ModuleNotFoundError: No module named 'prometheus_fastapi_instrumentator'
+_______ ERROR at setup of TestMe.test_me_with_invalid_token_returns_401 _______
+..\tests\integration\test_auth.py:19: in client
+    from main import app
+main.py:12: in <module>
+    from prometheus_fastapi_instrumentator import Instrumentator
+E   ModuleNotFoundError: No module named 'prometheus_fastapi_instrumentator'
+================================== FAILURES ===================================
+_______________ TestEducationalExtractor.test_extracts_chapters _______________
+..\tests\unit\test_extraction.py:160: in test_extracts_chapters
+    result = self.extractor.extract("Python tutorial content", segments, metadata, [])
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+services\extraction\extractors.py:286: in extract
+    key_concepts = _extract_key_phrases(transcript_text)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+services\extraction\extractors.py:46: in _extract_key_phrases
+    nlp = _get_nlp()
+          ^^^^^^^^^^
+services\extraction\extractors.py:26: in _get_nlp
+    _nlp = spacy.load("en_core_web_sm")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\spacy\__init__.py:52: in load
+    return util.load_model(
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\spacy\util.py:531: in load_model
+    raise IOError(Errors.E050.format(name=name))
+E   OSError: [E050] Can't find model 'en_core_web_sm'. It doesn't seem to be a Python package or a valid path to a data directory.
+---------------------------- Captured stderr call -----------------------------
+2026-02-19 20:56:55.496 | INFO     | services.extraction.extractors:extract:278 - Running EducationalExtractor
+_____________ TestEducationalExtractor.test_auto_segment_fallback _____________
+..\tests\unit\test_extraction.py:170: in test_auto_segment_fallback
+    result = self.extractor.extract("Full lecture content.", segments, metadata, [])
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+services\extraction\extractors.py:286: in extract
+    key_concepts = _extract_key_phrases(transcript_text)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+services\extraction\extractors.py:46: in _extract_key_phrases
+    nlp = _get_nlp()
+          ^^^^^^^^^^
+services\extraction\extractors.py:26: in _get_nlp
+    _nlp = spacy.load("en_core_web_sm")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\spacy\__init__.py:52: in load
+    return util.load_model(
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\spacy\util.py:531: in load_model
+    raise IOError(Errors.E050.format(name=name))
+E   OSError: [E050] Can't find model 'en_core_web_sm'. It doesn't seem to be a Python package or a valid path to a data directory.
+---------------------------- Captured stderr call -----------------------------
+2026-02-19 20:56:55.979 | INFO     | services.extraction.extractors:extract:278 - Running EducationalExtractor
+_______________ TestHeuristicClassifier.test_listicle_detection _______________
+..\tests\unit\test_extraction.py:179: in test_listicle_detection
+    from services.classification.classifier import MultiModalClassifier
+services\classification\classifier.py:31: in <module>
+    from torchvision import models, transforms
+E   ModuleNotFoundError: No module named 'torchvision'
+________________ TestHeuristicClassifier.test_music_detection _________________
+..\tests\unit\test_extraction.py:191: in test_music_detection
+    from services.classification.classifier import MultiModalClassifier, CATEGORIES
+services\classification\classifier.py:31: in <module>
+    from torchvision import models, transforms
+E   ModuleNotFoundError: No module named 'torchvision'
+________________ TestHeuristicClassifier.test_gaming_detection ________________
+..\tests\unit\test_extraction.py:201: in test_gaming_detection
+    from services.classification.classifier import MultiModalClassifier, CATEGORIES
+services\classification\classifier.py:31: in <module>
+    from torchvision import models, transforms
+E   ModuleNotFoundError: No module named 'torchvision'
+=========================== short test summary info ===========================
+FAILED ..\tests\unit\test_extraction.py::TestEducationalExtractor::test_extracts_chapters
+FAILED ..\tests\unit\test_extraction.py::TestEducationalExtractor::test_auto_segment_fallback
+FAILED ..\tests\unit\test_extraction.py::TestHeuristicClassifier::test_listicle_detection
+FAILED ..\tests\unit\test_extraction.py::TestHeuristicClassifier::test_music_detection
+FAILED ..\tests\unit\test_extraction.py::TestHeuristicClassifier::test_gaming_detection
+ERROR ..\tests\integration\test_analytics.py::TestAnalyticsSummary::test_summary_endpoint_registered
+ERROR ..\tests\integration\test_analytics.py::TestAnalyticsSummary::test_summary_returns_valid_schema
+ERROR ..\tests\integration\test_analytics.py::TestAnalyticsSummary::test_summary_accepts_days_filter
+ERROR ..\tests\integration\test_analytics.py::TestAnalyticsRecent::test_recent_endpoint_registered
+ERROR ..\tests\integration\test_analytics.py::TestAnalyticsRecent::test_recent_accepts_limit_param
+ERROR ..\tests\integration\test_analytics.py::TestAnalyticsRecent::test_recent_invalid_limit_rejected
+ERROR ..\tests\integration\test_analytics.py::TestAnalyticsProcessingTimes::test_processing_times_endpoint_registered
+ERROR ..\tests\integration\test_auth.py::TestRegister::test_missing_fields_rejected
+ERROR ..\tests\integration\test_auth.py::TestRegister::test_invalid_email_rejected
+ERROR ..\tests\integration\test_auth.py::TestRegister::test_short_password_rejected
+ERROR ..\tests\integration\test_auth.py::TestRegister::test_valid_registration_reaches_db
+ERROR ..\tests\integration\test_auth.py::TestLogin::test_invalid_credentials_format
+ERROR ..\tests\integration\test_auth.py::TestLogin::test_login_endpoint_exists
+ERROR ..\tests\integration\test_auth.py::TestTokenRefresh::test_refresh_without_token_rejected
+ERROR ..\tests\integration\test_auth.py::TestMe::test_me_without_token_returns_401
+ERROR ..\tests\integration\test_auth.py::TestMe::test_me_with_invalid_token_returns_401

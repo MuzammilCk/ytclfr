@@ -1,0 +1,233 @@
+.................ssFFFEEEEEEEEEEEEEEEE                                   [100%]
+=================================== ERRORS ====================================
+___ ERROR at setup of TestAnalyticsSummary.test_summary_endpoint_registered ___
+..\tests\integration\test_analytics.py:22: in client
+    from main import app
+main.py:16: in <module>
+    from api.routes.analysis import router as analysis_router
+api\routes\analysis.py:35: in <module>
+    from services.pipeline import analyse_video as celery_analyse
+services\pipeline.py:23: in <module>
+    from services.classification.classifier import MultiModalClassifier
+services\classification\classifier.py:27: in <module>
+    import torch.nn as nn
+E   ModuleNotFoundError: No module named 'torch.nn'; 'torch' is not a package
+__ ERROR at setup of TestAnalyticsSummary.test_summary_returns_valid_schema ___
+..\tests\integration\test_analytics.py:22: in client
+    from main import app
+main.py:16: in <module>
+    from api.routes.analysis import router as analysis_router
+api\routes\analysis.py:35: in <module>
+    from services.pipeline import analyse_video as celery_analyse
+services\pipeline.py:23: in <module>
+    from services.classification.classifier import MultiModalClassifier
+services\classification\classifier.py:27: in <module>
+    import torch.nn as nn
+E   ModuleNotFoundError: No module named 'torch.nn'; 'torch' is not a package
+___ ERROR at setup of TestAnalyticsSummary.test_summary_accepts_days_filter ___
+..\tests\integration\test_analytics.py:22: in client
+    from main import app
+main.py:16: in <module>
+    from api.routes.analysis import router as analysis_router
+api\routes\analysis.py:35: in <module>
+    from services.pipeline import analyse_video as celery_analyse
+services\pipeline.py:23: in <module>
+    from services.classification.classifier import MultiModalClassifier
+services\classification\classifier.py:27: in <module>
+    import torch.nn as nn
+E   ModuleNotFoundError: No module named 'torch.nn'; 'torch' is not a package
+____ ERROR at setup of TestAnalyticsRecent.test_recent_endpoint_registered ____
+..\tests\integration\test_analytics.py:22: in client
+    from main import app
+main.py:16: in <module>
+    from api.routes.analysis import router as analysis_router
+api\routes\analysis.py:35: in <module>
+    from services.pipeline import analyse_video as celery_analyse
+services\pipeline.py:23: in <module>
+    from services.classification.classifier import MultiModalClassifier
+services\classification\classifier.py:27: in <module>
+    import torch.nn as nn
+E   ModuleNotFoundError: No module named 'torch.nn'; 'torch' is not a package
+____ ERROR at setup of TestAnalyticsRecent.test_recent_accepts_limit_param ____
+..\tests\integration\test_analytics.py:22: in client
+    from main import app
+main.py:16: in <module>
+    from api.routes.analysis import router as analysis_router
+api\routes\analysis.py:35: in <module>
+    from services.pipeline import analyse_video as celery_analyse
+services\pipeline.py:23: in <module>
+    from services.classification.classifier import MultiModalClassifier
+services\classification\classifier.py:27: in <module>
+    import torch.nn as nn
+E   ModuleNotFoundError: No module named 'torch.nn'; 'torch' is not a package
+__ ERROR at setup of TestAnalyticsRecent.test_recent_invalid_limit_rejected ___
+..\tests\integration\test_analytics.py:22: in client
+    from main import app
+main.py:16: in <module>
+    from api.routes.analysis import router as analysis_router
+api\routes\analysis.py:35: in <module>
+    from services.pipeline import analyse_video as celery_analyse
+services\pipeline.py:23: in <module>
+    from services.classification.classifier import MultiModalClassifier
+services\classification\classifier.py:27: in <module>
+    import torch.nn as nn
+E   ModuleNotFoundError: No module named 'torch.nn'; 'torch' is not a package
+_ ERROR at setup of TestAnalyticsProcessingTimes.test_processing_times_endpoint_registered _
+..\tests\integration\test_analytics.py:22: in client
+    from main import app
+main.py:16: in <module>
+    from api.routes.analysis import router as analysis_router
+api\routes\analysis.py:35: in <module>
+    from services.pipeline import analyse_video as celery_analyse
+services\pipeline.py:23: in <module>
+    from services.classification.classifier import MultiModalClassifier
+services\classification\classifier.py:27: in <module>
+    import torch.nn as nn
+E   ModuleNotFoundError: No module named 'torch.nn'; 'torch' is not a package
+_________ ERROR at setup of TestRegister.test_missing_fields_rejected _________
+..\tests\integration\test_auth.py:19: in client
+    from main import app
+main.py:16: in <module>
+    from api.routes.analysis import router as analysis_router
+api\routes\analysis.py:35: in <module>
+    from services.pipeline import analyse_video as celery_analyse
+services\pipeline.py:23: in <module>
+    from services.classification.classifier import MultiModalClassifier
+services\classification\classifier.py:27: in <module>
+    import torch.nn as nn
+E   ModuleNotFoundError: No module named 'torch.nn'; 'torch' is not a package
+_________ ERROR at setup of TestRegister.test_invalid_email_rejected __________
+..\tests\integration\test_auth.py:19: in client
+    from main import app
+main.py:16: in <module>
+    from api.routes.analysis import router as analysis_router
+api\routes\analysis.py:35: in <module>
+    from services.pipeline import analyse_video as celery_analyse
+services\pipeline.py:23: in <module>
+    from services.classification.classifier import MultiModalClassifier
+services\classification\classifier.py:27: in <module>
+    import torch.nn as nn
+E   ModuleNotFoundError: No module named 'torch.nn'; 'torch' is not a package
+_________ ERROR at setup of TestRegister.test_short_password_rejected _________
+..\tests\integration\test_auth.py:19: in client
+    from main import app
+main.py:16: in <module>
+    from api.routes.analysis import router as analysis_router
+api\routes\analysis.py:35: in <module>
+    from services.pipeline import analyse_video as celery_analyse
+services\pipeline.py:23: in <module>
+    from services.classification.classifier import MultiModalClassifier
+services\classification\classifier.py:27: in <module>
+    import torch.nn as nn
+E   ModuleNotFoundError: No module named 'torch.nn'; 'torch' is not a package
+______ ERROR at setup of TestRegister.test_valid_registration_reaches_db ______
+..\tests\integration\test_auth.py:19: in client
+    from main import app
+main.py:16: in <module>
+    from api.routes.analysis import router as analysis_router
+api\routes\analysis.py:35: in <module>
+    from services.pipeline import analyse_video as celery_analyse
+services\pipeline.py:23: in <module>
+    from services.classification.classifier import MultiModalClassifier
+services\classification\classifier.py:27: in <module>
+    import torch.nn as nn
+E   ModuleNotFoundError: No module named 'torch.nn'; 'torch' is not a package
+_________ ERROR at setup of TestLogin.test_invalid_credentials_format _________
+..\tests\integration\test_auth.py:19: in client
+    from main import app
+main.py:16: in <module>
+    from api.routes.analysis import router as analysis_router
+api\routes\analysis.py:35: in <module>
+    from services.pipeline import analyse_video as celery_analyse
+services\pipeline.py:23: in <module>
+    from services.classification.classifier import MultiModalClassifier
+services\classification\classifier.py:27: in <module>
+    import torch.nn as nn
+E   ModuleNotFoundError: No module named 'torch.nn'; 'torch' is not a package
+___________ ERROR at setup of TestLogin.test_login_endpoint_exists ____________
+..\tests\integration\test_auth.py:19: in client
+    from main import app
+main.py:16: in <module>
+    from api.routes.analysis import router as analysis_router
+api\routes\analysis.py:35: in <module>
+    from services.pipeline import analyse_video as celery_analyse
+services\pipeline.py:23: in <module>
+    from services.classification.classifier import MultiModalClassifier
+services\classification\classifier.py:27: in <module>
+    import torch.nn as nn
+E   ModuleNotFoundError: No module named 'torch.nn'; 'torch' is not a package
+___ ERROR at setup of TestTokenRefresh.test_refresh_without_token_rejected ____
+..\tests\integration\test_auth.py:19: in client
+    from main import app
+main.py:16: in <module>
+    from api.routes.analysis import router as analysis_router
+api\routes\analysis.py:35: in <module>
+    from services.pipeline import analyse_video as celery_analyse
+services\pipeline.py:23: in <module>
+    from services.classification.classifier import MultiModalClassifier
+services\classification\classifier.py:27: in <module>
+    import torch.nn as nn
+E   ModuleNotFoundError: No module named 'torch.nn'; 'torch' is not a package
+_________ ERROR at setup of TestMe.test_me_without_token_returns_401 __________
+..\tests\integration\test_auth.py:19: in client
+    from main import app
+main.py:16: in <module>
+    from api.routes.analysis import router as analysis_router
+api\routes\analysis.py:35: in <module>
+    from services.pipeline import analyse_video as celery_analyse
+services\pipeline.py:23: in <module>
+    from services.classification.classifier import MultiModalClassifier
+services\classification\classifier.py:27: in <module>
+    import torch.nn as nn
+E   ModuleNotFoundError: No module named 'torch.nn'; 'torch' is not a package
+_______ ERROR at setup of TestMe.test_me_with_invalid_token_returns_401 _______
+..\tests\integration\test_auth.py:19: in client
+    from main import app
+main.py:16: in <module>
+    from api.routes.analysis import router as analysis_router
+api\routes\analysis.py:35: in <module>
+    from services.pipeline import analyse_video as celery_analyse
+services\pipeline.py:23: in <module>
+    from services.classification.classifier import MultiModalClassifier
+services\classification\classifier.py:27: in <module>
+    import torch.nn as nn
+E   ModuleNotFoundError: No module named 'torch.nn'; 'torch' is not a package
+================================== FAILURES ===================================
+_______________ TestHeuristicClassifier.test_listicle_detection _______________
+..\tests\unit\test_extraction.py:208: in test_listicle_detection
+    from services.classification.classifier import MultiModalClassifier
+services\classification\classifier.py:27: in <module>
+    import torch.nn as nn
+E   ModuleNotFoundError: No module named 'torch.nn'; 'torch' is not a package
+________________ TestHeuristicClassifier.test_music_detection _________________
+..\tests\unit\test_extraction.py:221: in test_music_detection
+    from services.classification.classifier import MultiModalClassifier, CATEGORIES
+services\classification\classifier.py:27: in <module>
+    import torch.nn as nn
+E   ModuleNotFoundError: No module named 'torch.nn'; 'torch' is not a package
+________________ TestHeuristicClassifier.test_gaming_detection ________________
+..\tests\unit\test_extraction.py:232: in test_gaming_detection
+    from services.classification.classifier import MultiModalClassifier, CATEGORIES
+services\classification\classifier.py:27: in <module>
+    import torch.nn as nn
+E   ModuleNotFoundError: No module named 'torch.nn'; 'torch' is not a package
+=========================== short test summary info ===========================
+FAILED ..\tests\unit\test_extraction.py::TestHeuristicClassifier::test_listicle_detection
+FAILED ..\tests\unit\test_extraction.py::TestHeuristicClassifier::test_music_detection
+FAILED ..\tests\unit\test_extraction.py::TestHeuristicClassifier::test_gaming_detection
+ERROR ..\tests\integration\test_analytics.py::TestAnalyticsSummary::test_summary_endpoint_registered
+ERROR ..\tests\integration\test_analytics.py::TestAnalyticsSummary::test_summary_returns_valid_schema
+ERROR ..\tests\integration\test_analytics.py::TestAnalyticsSummary::test_summary_accepts_days_filter
+ERROR ..\tests\integration\test_analytics.py::TestAnalyticsRecent::test_recent_endpoint_registered
+ERROR ..\tests\integration\test_analytics.py::TestAnalyticsRecent::test_recent_accepts_limit_param
+ERROR ..\tests\integration\test_analytics.py::TestAnalyticsRecent::test_recent_invalid_limit_rejected
+ERROR ..\tests\integration\test_analytics.py::TestAnalyticsProcessingTimes::test_processing_times_endpoint_registered
+ERROR ..\tests\integration\test_auth.py::TestRegister::test_missing_fields_rejected
+ERROR ..\tests\integration\test_auth.py::TestRegister::test_invalid_email_rejected
+ERROR ..\tests\integration\test_auth.py::TestRegister::test_short_password_rejected
+ERROR ..\tests\integration\test_auth.py::TestRegister::test_valid_registration_reaches_db
+ERROR ..\tests\integration\test_auth.py::TestLogin::test_invalid_credentials_format
+ERROR ..\tests\integration\test_auth.py::TestLogin::test_login_endpoint_exists
+ERROR ..\tests\integration\test_auth.py::TestTokenRefresh::test_refresh_without_token_rejected
+ERROR ..\tests\integration\test_auth.py::TestMe::test_me_without_token_returns_401
+ERROR ..\tests\integration\test_auth.py::TestMe::test_me_with_invalid_token_returns_401
