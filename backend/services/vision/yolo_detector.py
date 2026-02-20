@@ -91,7 +91,8 @@ def _run_detection(frame_paths: List[str], conf_threshold: float) -> List[Detect
                     label_idx = int(box.cls[0])
                     label = model.names.get(label_idx, str(label_idx))
                     conf = float(box.conf[0])
-                    xyxy = box.xyxy[0].tolist()
+                    coords = box.xyxy[0]
+                    xyxy = coords.tolist() if hasattr(coords, "tolist") else list(coords)
                     detections.append(Detection(
                         label=label,
                         confidence=round(conf, 3),

@@ -23,7 +23,13 @@ _nlp: Optional[Any] = None
 def _get_nlp():
     global _nlp
     if _nlp is None:
-        _nlp = spacy.load("en_core_web_sm")
+        try:
+            _nlp = spacy.load("en_core_web_sm")
+        except Exception as exc:
+            logger.warning(
+                f"spaCy model en_core_web_sm unavailable ({exc}). Falling back to blank 'en' pipeline."
+            )
+            _nlp = spacy.blank("en")
     return _nlp
 
 
@@ -46,10 +52,18 @@ def _extract_key_phrases(text: str, top_n: int = 15) -> List[str]:
     nlp = _get_nlp()
     doc = nlp(text[:50_000])
     phrase_freq: Dict[str, int] = {}
-    for chunk in doc.noun_chunks:
-        phrase = chunk.text.strip().lower()
-        if len(phrase) > 3:
-            phrase_freq[phrase] = phrase_freq.get(phrase, 0) + 1
+
+    if "parser" not in nlp.pipe_names:
+        # Fallback when model data isn't available (e.g., restricted environments)
+        tokens = [t.text.lower() for t in doc if t.is_alpha and len(t.text) > 3 and not t.is_stop]
+        for tok in tokens:
+            phrase_freq[tok] = phrase_freq.get(tok, 0) + 1
+    else:
+        for chunk in doc.noun_chunks:
+            phrase = chunk.text.strip().lower()
+            if len(phrase) > 3:
+                phrase_freq[phrase] = phrase_freq.get(phrase, 0) + 1
+
     return [p for p, _ in sorted(phrase_freq.items(), key=lambda x: -x[1])][:top_n]
 
 

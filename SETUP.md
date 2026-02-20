@@ -77,6 +77,7 @@ cd backend
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
+# Download spaCy English model (recommended for best extraction quality)
 python -m spacy download en_core_web_sm
 ```
 
@@ -175,6 +176,6 @@ Open: http://localhost:5173
 |---|---|
 | `alembic upgrade head` fails | Check `POSTGRES_*` in `.env`; verify database exists |
 | Celery worker exits immediately | Use `--pool=solo` on Windows |
-| Whisper import error | `pip install openai-whisper` and re-run `download_models.py` |
+| Whisper runtime error | Verify `faster-whisper` installed and FFmpeg is in PATH; then re-run `download_models.py` |
 | Frontend can't reach API | Set `VITE_API_URL=http://localhost:8000` in `frontend/.env` |
-| `en_core_web_sm` not found | Run `python -m spacy download en_core_web_sm` |
+| `en_core_web_sm` not found | Run `python -m spacy download en_core_web_sm` (or install from your internal package mirror) |

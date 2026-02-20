@@ -73,7 +73,7 @@ jobs:
       WHISPER_DEVICE: cpu
       TORCH_DEVICE: cpu
       YOLO_MODEL_PATH: yolov8n.pt
-      ALLOWED_ORIGINS: "http://localhost:3000"
+      ALLOWED_ORIGINS: '["http://localhost:3000"]'
 
     steps:
       - uses: actions/checkout@v4
