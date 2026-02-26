@@ -4,16 +4,18 @@ Centralised settings loaded from environment variables / .env file.
 All secrets live here — never hard-code them.
 """
 from functools import lru_cache
+from pathlib import Path
 import json
 from typing import List, Optional
-from pydantic import AnyHttpUrl, field_validator
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 from typing_extensions import Annotated
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file="../.env",
+        # FIX 4: Use absolute path so .env is found regardless of working directory
+        env_file=Path(__file__).resolve().parent.parent / ".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
@@ -25,7 +27,12 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     ENVIRONMENT: str = "production"          # development | staging | production
     SECRET_KEY: str = "change-me-in-production-use-openssl-rand-hex-32"
-    ALLOWED_ORIGINS: Annotated[List[str], NoDecode] = ["http://localhost:3000"]
+
+    # FIX 2: Added port 5173 (Vite dev server) alongside 3000
+    ALLOWED_ORIGINS: Annotated[List[str], NoDecode] = [
+        "http://localhost:3000",
+        "http://localhost:5173",
+    ]
 
     # ── Database ─────────────────────────────────────────────────────────────
     POSTGRES_HOST: str = "localhost"
@@ -34,6 +41,8 @@ class Settings(BaseSettings):
     POSTGRES_USER: str = "postgres"
     POSTGRES_PASSWORD: str = "postgres"
 
+    # Prefer MONGO_URL (full connection string, e.g. Atlas); fall back to MONGO_URI for legacy configs
+    MONGO_URL: Optional[str] = None
     MONGO_URI: str = "mongodb://localhost:27017"
     MONGO_DB: str = "ytclassifier_docs"
 
@@ -41,7 +50,7 @@ class Settings(BaseSettings):
     CACHE_TTL_SECONDS: int = 86400           # 24 h
 
     # ── Celery ───────────────────────────────────────────────────────────────
-    CELERY_BROKER_URL: str = "amqp://guest:guest@localhost:5672//"
+    CELERY_BROKER_URL: str = "redis://localhost:6379/0"
     CELERY_RESULT_BACKEND: str = "redis://localhost:6379/1"
 
     # ── Storage ──────────────────────────────────────────────────────────────
@@ -111,6 +120,7 @@ class Settings(BaseSettings):
 
     @property
     def postgres_dsn(self) -> str:
+        """Async DSN for FastAPI routes (asyncpg driver)."""
         return (
             f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
             f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
@@ -118,10 +128,16 @@ class Settings(BaseSettings):
 
     @property
     def postgres_dsn_sync(self) -> str:
+        """Sync DSN for Celery tasks (psycopg2 driver)."""
         return (
             f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
             f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
         )
+
+    @property
+    def mongo_connection_string(self) -> str:
+        """FIX 3: Returns MONGO_URL if set (e.g. Atlas), otherwise falls back to MONGO_URI (local)."""
+        return self.MONGO_URL or self.MONGO_URI
 
 
 @lru_cache

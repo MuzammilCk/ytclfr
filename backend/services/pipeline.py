@@ -43,9 +43,10 @@ celery_app.conf.update(
     enable_utc=True,
     task_track_started=True,
     task_acks_late=True,
-    worker_prefetch_multiplier=1,   # process one task at a time per worker
-    task_soft_time_limit=600,       # 10 min soft limit
-    task_time_limit=720,            # 12 min hard limit
+    worker_prefetch_multiplier=1,       # process one task at a time per worker
+    task_soft_time_limit=600,           # 10 min soft limit
+    task_time_limit=720,                # 12 min hard limit
+    broker_connection_retry_on_startup=True,  # FIX 1: suppresses deprecation warning
 )
 
 # Module-level service singletons (one per Celery worker process)
@@ -75,6 +76,7 @@ def _update_status(analysis_id: str, status: str, error: Optional[str] = None):
     """
     Update analysis job status in PostgreSQL.
     Runs a raw synchronous DB update to avoid async complexity inside Celery.
+    Uses psycopg2 (sync driver) — NOT asyncpg.
     """
     import psycopg2
     try:
@@ -175,7 +177,7 @@ def analyse_video(
             f"(confidence={classification.confidence:.2%})"
         )
 
-        # ── Step 5: Category-specific extraction ──────────────────────────────────────
+        # ── Step 5: Category-specific extraction ──────────────────────────────
         _update_status(analysis_id, "extracting_info")
         extractor = get_extractor(category)
 
@@ -185,7 +187,6 @@ def analyse_video(
             yolo_detections = loop.run_until_complete(_yolo.detect(frame_result.frame_paths))
             extractor.detections = yolo_detections
             logger.info(f"[{analysis_id}] YOLO found {len(yolo_detections)} object(s)")
-
 
         extraction = extractor.extract(
             transcript_text=transcript_text,
@@ -271,10 +272,15 @@ def analyse_video(
 
 
 def _persist_to_mongo(analysis_id: str, result: Dict[str, Any]):
-    """Write the full analysis result to MongoDB (synchronous pymongo call)."""
+    """
+    Write the full analysis result to MongoDB (synchronous pymongo call).
+    FIX 3: Uses settings.mongo_connection_string which prefers MONGO_URL
+           (Atlas) over MONGO_URI (local) automatically.
+    """
     from pymongo import MongoClient
     try:
-        client = MongoClient(settings.MONGO_URI, serverSelectionTimeoutMS=5000)
+        # FIX 3: Use the property that handles MONGO_URL vs MONGO_URI priority
+        client = MongoClient(settings.mongo_connection_string, serverSelectionTimeoutMS=5000)
         db = client[settings.MONGO_DB]
         doc = {"_analysis_id": analysis_id, **result}
         insert_result = db["analysis_results"].insert_one(doc)

@@ -55,7 +55,8 @@ _mongo_client: AsyncIOMotorClient | None = None
 def get_mongo_client() -> AsyncIOMotorClient:
     global _mongo_client
     if _mongo_client is None:
-        _mongo_client = AsyncIOMotorClient(settings.MONGO_URI)
+        mongo_url = getattr(settings, "MONGO_URL", None) or settings.MONGO_URI
+        _mongo_client = AsyncIOMotorClient(mongo_url)
     return _mongo_client
 
 
