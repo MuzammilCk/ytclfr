@@ -54,17 +54,14 @@ def download_whisper(model_size: str = "base") -> bool:
     _hr()
     print(f"Downloading Whisper model: {model_size}")
     try:
-        import whisper  # noqa: PLC0415
+        from faster_whisper import download_model  # noqa: PLC0415
         t0 = time.perf_counter()
-        model = whisper.load_model(model_size)
+        model_path = download_model(model_size)
         elapsed = time.perf_counter() - t0
-        # Estimate file size via parameter count
-        param_count = sum(p.numel() for p in model.parameters())
-        size_mb = param_count * 4 / 1024 / 1024   # float32 approx
-        _ok(f"Whisper '{model_size}' ready  (~{size_mb:.0f} MB parameters, {elapsed:.1f}s)")
+        _ok(f"Whisper '{model_size}' ready  ({elapsed:.1f}s) -> {model_path}")
         return True
     except ImportError:
-        _fail("openai-whisper not installed. Run: pip install openai-whisper")
+        _fail("faster-whisper not installed. Run: pip install faster-whisper")
         return False
     except Exception as exc:
         _fail(f"Whisper download failed: {exc}")
