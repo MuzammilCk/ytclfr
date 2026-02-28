@@ -154,10 +154,15 @@ class VideoDownloader:
 
         opts = {
             **self._ydl_common_opts(),
-            # Prefer best single-file mp4 ≤1080p; fall back to best available
+            # Try mp4 first, then any best video+audio, then any single file.
+            # The wide fallback chain prevents "Requested format is not available"
+            # errors on channels that only serve webm/vp9.
             "format": (
                 "bestvideo[ext=mp4][height<=1080]+bestaudio[ext=m4a]"
-                "/best[ext=mp4][height<=1080]/best"
+                "/bestvideo[height<=1080]+bestaudio"
+                "/bestvideo+bestaudio"
+                "/best[height<=1080]"
+                "/best"
             ),
             "outtmpl": str(self.download_dir / f"{video_id}.%(ext)s"),
             "merge_output_format": "mp4",
