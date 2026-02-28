@@ -183,34 +183,52 @@ class MultiModalClassifier:
     def __init__(self):
         self.device = torch.device(settings.TORCH_DEVICE)
         self.tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
+        # Models are NOT instantiated here — they are accessed from the
+        # worker_process_init cache in services.pipeline._models.
+        # Fallback to a locally loaded instance only if the cache is absent.
+        self._frame_model: Optional[FrameClassifier] = None
+        self._text_model: Optional[TextClassifier] = None
 
-        self.frame_model = FrameClassifier().to(self.device)
-        self.text_model = TextClassifier().to(self.device)
+    def _get_frame_model(self) -> FrameClassifier:
+        """Return the cached frame model or create a fallback instance."""
+        try:
+            from services.pipeline import _models  # noqa: PLC0415
+            if "efficientnet" in _models:
+                return _models["efficientnet"]
+        except Exception:
+            pass
+        if self._frame_model is None:
+            self._frame_model = FrameClassifier().to(self.device)
+            self._load_frame_weights(self._frame_model)
+            self._frame_model.eval()
+        return self._frame_model
 
-        self._load_weights()
+    def _get_text_model(self) -> TextClassifier:
+        """Return the cached text model or create a fallback instance."""
+        try:
+            from services.pipeline import _models  # noqa: PLC0415
+            if "bert" in _models:
+                return _models["bert"]
+        except Exception:
+            pass
+        if self._text_model is None:
+            self._text_model = TextClassifier().to(self.device)
+            self._load_text_weights(self._text_model)
+            self._text_model.eval()
+        return self._text_model
 
-        self.frame_model.eval()
-        self.text_model.eval()
-
-        logger.info(f"MultiModalClassifier ready on device={self.device}")
-
-    def _load_weights(self):
-        """Load fine-tuned checkpoints if they exist on disk."""
-        frame_ckpt = Path(settings.DOWNLOAD_DIR).parent / "models" / "frame_classifier.pt"
-        text_ckpt = Path(settings.DOWNLOAD_DIR).parent / "models" / "text_classifier.pt"
-
-        if frame_ckpt.exists():
-            self.frame_model.load_state_dict(
-                torch.load(str(frame_ckpt), map_location=self.device)
-            )
+    def _load_frame_weights(self, model: FrameClassifier):
+        ckpt = Path(settings.DOWNLOAD_DIR).parent / "models" / "frame_classifier.pt"
+        if ckpt.exists():
+            model.load_state_dict(torch.load(str(ckpt), map_location=self.device))
             logger.info("Loaded fine-tuned frame classifier weights")
         else:
             logger.warning("No fine-tuned frame weights found; using ImageNet pretrained")
 
-        if text_ckpt.exists():
-            self.text_model.load_state_dict(
-                torch.load(str(text_ckpt), map_location=self.device)
-            )
+    def _load_text_weights(self, model: TextClassifier):
+        ckpt = Path(settings.DOWNLOAD_DIR).parent / "models" / "text_classifier.pt"
+        if ckpt.exists():
+            model.load_state_dict(torch.load(str(ckpt), map_location=self.device))
             logger.info("Loaded fine-tuned text classifier weights")
         else:
             logger.warning("No fine-tuned text weights found; using BERT pretrained")
@@ -221,12 +239,13 @@ class MultiModalClassifier:
     def classify_frames(self, frame_paths: List[str]) -> np.ndarray:
         """
         Score each frame and return average softmax distribution.
-        Limits to first 60 frames for speed.
+        Returns uniform prior if frame_paths is empty.
         """
-        sampled = frame_paths[:60]
+        sampled = frame_paths[:MAX_FRAMES] if frame_paths else []
         if not sampled:
-            return np.ones(N_CLASSES) / N_CLASSES   # uniform prior
+            return np.ones(N_CLASSES) / N_CLASSES   # uniform prior — text-only fallback
 
+        frame_model = self._get_frame_model()
         tensors: List[torch.Tensor] = []
         for p in sampled:
             try:
@@ -239,16 +258,18 @@ class MultiModalClassifier:
             return np.ones(N_CLASSES) / N_CLASSES
 
         batch = torch.stack(tensors).to(self.device)      # (N, 3, 224, 224)
-        logits = self.frame_model(batch)                   # (N, 8)
+        logits = frame_model(batch)                        # (N, 8)
         probs = torch.softmax(logits, dim=1)               # (N, 8)
         return probs.mean(dim=0).cpu().numpy()             # (8,)
 
     @torch.no_grad()
     def classify_text(self, text: str) -> np.ndarray:
-        """Encode title + transcript with BERT and return softmax distribution."""
+        """Encode title + transcript with BERT and return softmax distribution.
+        Returns uniform prior if transcript is empty."""
         if not text.strip():
-            return np.ones(N_CLASSES) / N_CLASSES
+            return np.ones(N_CLASSES) / N_CLASSES   # uniform prior — vision-only fallback
 
+        text_model = self._get_text_model()
         encoded = self.tokenizer(
             text,
             truncation=True,
@@ -257,7 +278,7 @@ class MultiModalClassifier:
             return_tensors="pt",
         )
         encoded = {k: v.to(self.device) for k, v in encoded.items()}
-        logits = self.text_model(**encoded)       # (1, 8)
+        logits = text_model(**encoded)            # (1, 8)
         probs = torch.softmax(logits, dim=1)
         return probs.squeeze(0).cpu().numpy()     # (8,)
 
@@ -293,23 +314,41 @@ class MultiModalClassifier:
     ) -> ClassificationOutput:
         """
         Run all three sub-classifiers and return a weighted ensemble prediction.
+        Falls back to text-only if frame_paths is empty, or vision-only if transcript is empty.
+        Returns 'unknown' if max confidence < 0.4.
         """
         text_input = f"{title}. {transcript[:1000]}"  # title always first
 
-        vision_probs = self.classify_frames(frame_paths)
-        text_probs = self.classify_text(text_input)
+        # Guarded calls — each returns uniform prior when input is missing
+        vision_probs = self.classify_frames(frame_paths)   # uniform if no frames
+        text_probs = self.classify_text(text_input)         # uniform if no transcript
         heuristic_probs = self.classify_heuristic(title, description, tags)
 
+        # Adjust weights dynamically to avoid diluting the available signal
+        w_vision = ENSEMBLE_WEIGHTS["vision"] if frame_paths else 0.0
+        w_text = ENSEMBLE_WEIGHTS["text"] if transcript and transcript.strip() else 0.0
+        w_heuristic = ENSEMBLE_WEIGHTS["heuristic"]
+        total_w = w_vision + w_text + w_heuristic or 1.0
+
         combined = (
-            ENSEMBLE_WEIGHTS["vision"] * vision_probs
-            + ENSEMBLE_WEIGHTS["text"] * text_probs
-            + ENSEMBLE_WEIGHTS["heuristic"] * heuristic_probs
+            (w_vision / total_w) * vision_probs
+            + (w_text / total_w) * text_probs
+            + (w_heuristic / total_w) * heuristic_probs
         )
 
         pred_idx = int(combined.argmax())
         confidence = float(combined[pred_idx])
 
         all_scores = {CATEGORIES[i]: float(combined[i]) for i in range(N_CLASSES)}
+
+        # Low-confidence fallback
+        if confidence < 0.4:
+            return ClassificationOutput(
+                predicted_category="unknown",
+                confidence=confidence,
+                all_scores=all_scores,
+                modality_breakdown={},
+            )
 
         return ClassificationOutput(
             predicted_category=CATEGORIES[pred_idx],

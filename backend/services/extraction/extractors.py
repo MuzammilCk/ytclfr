@@ -270,10 +270,19 @@ class MusicExtractor(BaseExtractor):
             raw_tracks = _parse_music_entries(transcript_text)
 
         tracks = []
+        seen: set = set()
         for t in raw_tracks:
+            key = (t.get("title", "") or "").strip().lower()
+            if key and key in seen:
+                continue
+            seen.add(key)
             tracks.append({
                 **t,
-                "spotify": None,   # enriched later by SpotifyService
+                "spotify": {
+                    "spotify_url": None,
+                    "spotify_id": None,
+                    "found": False,
+                },
                 "timestamp_secs": None,
             })
 
@@ -403,8 +412,11 @@ class ShoppingExtractor(BaseExtractor):
 
         # Merge NLP products that are not already covered by YOLO
         yolo_names = {p["name"].lower() for p in products}
+        seen_nlp: set = set()
         for name in product_mentions:
-            if name.lower() not in yolo_names:
+            key = name.lower()
+            if key not in yolo_names and key not in seen_nlp:
+                seen_nlp.add(key)
                 products.append({
                     "name": name,
                     "brand": None,
@@ -413,6 +425,7 @@ class ShoppingExtractor(BaseExtractor):
                     "detection_source": "nlp",
                     "confidence": None,
                     "search_url": self._google_shopping_url(name),
+                    "prices_are_live": False,
                 })
 
         return {
@@ -428,7 +441,6 @@ class ShoppingExtractor(BaseExtractor):
 
     def _build_product_list(self) -> List[Dict[str, Any]]:
         """Aggregate YOLO detections into a deduplicated product list."""
-        # Group detections by label
         label_map: Dict[str, Dict[str, Any]] = {}
         for det in self.detections:
             label: str = det.label
@@ -443,12 +455,11 @@ class ShoppingExtractor(BaseExtractor):
                     "detection_source": "yolo",
                     "confidence": det.confidence,
                     "search_url": self._google_shopping_url(label),
+                    "prices_are_live": False,   # disclaimer: prices are not fetched in real-time
                 }
-            # Record distinct frames where this product appeared
             frame_path = det.frame_path
             if frame_path not in label_map[label]["frame_timestamps"]:
                 label_map[label]["frame_timestamps"].append(frame_path)
-            # Keep the highest confidence score
             if det.confidence > label_map[label]["confidence"]:
                 label_map[label]["confidence"] = det.confidence
 

@@ -18,6 +18,7 @@ from typing import Dict, List, Optional
 
 import spotipy
 from loguru import logger
+from spotipy.exceptions import SpotifyException
 from spotipy.oauth2 import SpotifyClientCredentials, SpotifyOAuth
 
 from core.config import get_settings
@@ -137,6 +138,7 @@ class SpotifyService:
     def _search_track_sync(self, title: str, artist: str) -> Optional[TrackInfo]:
         """Synchronous Spotify search — runs in thread pool."""
         if not self._client:
+            logger.debug("Spotify client not available; skipping track search")
             return None
 
         # Strategy: try narrow query first, then broad
@@ -161,6 +163,14 @@ class SpotifyService:
                         preview_url=t.get("preview_url"),
                         spotify_url=t["external_urls"]["spotify"],
                     )
+            except SpotifyException as exc:
+                if exc.http_status == 401:
+                    # Access token expired — rebuild the client with fresh credentials
+                    logger.warning("Spotify 401 — refreshing client credentials")
+                    self._client = _build_client_credentials_client()
+                    continue   # retry this query with fresh token
+                logger.warning(f"Spotify search error for '{title}' / '{artist}': {exc}")
+                continue
             except Exception as exc:
                 logger.warning(f"Spotify search error for '{title}' / '{artist}': {exc}")
                 continue

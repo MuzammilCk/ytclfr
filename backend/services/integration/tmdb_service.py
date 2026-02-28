@@ -70,10 +70,30 @@ class TMDbService:
         if self._client is None or self._client.is_closed:
             self._client = httpx.AsyncClient(
                 base_url=self._base,
-                timeout=10.0,
+                timeout=15.0,
                 headers={"Accept": "application/json"},
             )
         return self._client
+
+    async def _request_with_retry(
+        self,
+        method: str,
+        endpoint: str,
+        params: dict,
+        max_retries: int = 3,
+    ) -> httpx.Response:
+        """Perform an HTTP request, automatically retrying on HTTP 429 (rate limit)."""
+        client = await self._get_client()
+        for attempt in range(max_retries):
+            resp = await client.request(method, endpoint, params=params)
+            if resp.status_code == 429:
+                retry_after = float(resp.headers.get("Retry-After", "1"))
+                logger.warning(f"TMDb 429 rate limit; sleeping {retry_after}s (attempt {attempt + 1})")
+                await asyncio.sleep(retry_after)
+                continue
+            return resp
+        resp.raise_for_status()
+        return resp
 
     async def close(self):
         if self._client and not self._client.is_closed:
@@ -88,12 +108,11 @@ class TMDbService:
         if not self._api_key:
             return None
         try:
-            client = await self._get_client()
             params: Dict = {"api_key": self._api_key, "query": title, "include_adult": "false"}
             if year:
                 params["year"] = year
 
-            resp = await client.get("/search/movie", params=params)
+            resp = await self._request_with_retry("GET", "/search/movie", params)
             resp.raise_for_status()
             results = resp.json().get("results", [])
             if not results:
@@ -113,12 +132,11 @@ class TMDbService:
         if not self._api_key:
             return None
         try:
-            client = await self._get_client()
             params: Dict = {"api_key": self._api_key, "query": title}
             if year:
                 params["first_air_date_year"] = year
 
-            resp = await client.get("/search/tv", params=params)
+            resp = await self._request_with_retry("GET", "/search/tv", params)
             resp.raise_for_status()
             results = resp.json().get("results", [])
             if not results:

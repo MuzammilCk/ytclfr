@@ -67,6 +67,10 @@ class VideoDownloader:
         Runs yt-dlp in a thread-pool executor so it doesn't block the
         asyncio event loop.
         """
+        # Validate URL before hitting yt-dlp
+        if not re.match(r'https?://(www\.)?(youtube\.com|youtu\.be)/', url):
+            raise ValueError(f"Invalid YouTube URL: {url!r}")
+
         video_id = extract_video_id(url)
         if not video_id:
             raise ValueError(f"Cannot extract YouTube video ID from: {url!r}")
@@ -87,6 +91,16 @@ class VideoDownloader:
         video_path = await asyncio.get_running_loop().run_in_executor(
             None, self._download_video, url, video_id
         )
+
+        # File size check
+        max_bytes = settings.MAX_FILE_SIZE_MB * 1024 * 1024
+        file_size = Path(video_path).stat().st_size
+        if file_size > max_bytes:
+            Path(video_path).unlink(missing_ok=True)
+            raise ValueError(
+                f"File too large: {file_size / 1e6:.1f} MB exceeds "
+                f"limit of {settings.MAX_FILE_SIZE_MB} MB"
+            )
 
         # Separate audio track (wav, 16kHz mono — Whisper optimal format)
         audio_path = await asyncio.get_running_loop().run_in_executor(

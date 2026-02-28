@@ -7,6 +7,7 @@ memory and compute cost under control, while always extracting
 enough frames for reliable classification.
 """
 import asyncio
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Tuple
@@ -18,6 +19,9 @@ from loguru import logger
 from core.config import get_settings
 
 settings = get_settings()
+
+# Honour env override; settings.MAX_FRAMES (default 60) is the ceiling for downstream ML
+MAX_FRAMES = int(os.getenv("MAX_FRAMES", str(settings.MAX_FRAMES)))
 
 
 @dataclass
@@ -41,11 +45,10 @@ class FrameExtractor:
     5 – 20 min      → 1 FPS  (default)
     20 – 60 min     → 0.5 FPS
     > 60 min        → 0.2 FPS
-    Always extracts ≥ 30 and ≤ 1800 frames per video.
+    Always extracts ≥ 30 and ≤ MAX_FRAMES frames per video.
     """
 
     MIN_FRAMES = 30
-    MAX_FRAMES = 1800
 
     def __init__(self, frames_dir: Optional[str] = None):
         self.frames_dir = Path(frames_dir or settings.FRAMES_DIR)
@@ -78,9 +81,14 @@ class FrameExtractor:
         target_fps = self._adaptive_fps(duration_secs)
         frame_interval = max(1, int(video_fps / target_fps))
 
+        # If the video has more candidate frames than MAX_FRAMES, widen the step
+        estimated_samples = total_frame_count // frame_interval
+        if estimated_samples > MAX_FRAMES:
+            frame_interval = max(1, total_frame_count // MAX_FRAMES)
+
         logger.info(
             f"[{video_id}] {duration_secs:.0f}s video @ {video_fps:.1f}fps → "
-            f"sampling every {frame_interval} frames ({target_fps:.2f} FPS)"
+            f"sampling every {frame_interval} frames (cap={MAX_FRAMES})"
         )
 
         frame_paths: List[str] = []
@@ -88,7 +96,7 @@ class FrameExtractor:
         saved_count = 0
         prev_gray: Optional[np.ndarray] = None
 
-        while cap.isOpened() and saved_count < self.MAX_FRAMES:
+        while cap.isOpened() and saved_count < MAX_FRAMES:
             ret, frame = cap.read()
             if not ret:
                 break

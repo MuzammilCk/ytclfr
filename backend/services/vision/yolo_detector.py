@@ -10,6 +10,7 @@ offloaded to a thread executor to avoid blocking the asyncio event loop.
 from __future__ import annotations
 
 import asyncio
+import os
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import List, Optional
@@ -19,6 +20,9 @@ from loguru import logger
 from core.config import get_settings
 
 settings = get_settings()
+
+# Per-box confidence threshold — can be overridden via env
+CONFIDENCE_THRESHOLD = float(os.getenv("YOLO_CONFIDENCE", str(settings.YOLO_CONFIDENCE)))
 
 # One process-level executor for CPU-bound YOLO inference
 _executor: ThreadPoolExecutor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="yolo")
@@ -61,16 +65,17 @@ class Detection:
 def _run_detection(frame_paths: List[str], conf_threshold: float) -> List[Detection]:
     """
     Run YOLOv8 inference synchronously.
-    Intended to be called inside a thread executor only.
-
-    Args:
-        frame_paths: Absolute file paths to extracted video frame images.
-        conf_threshold: Minimum confidence to include a detection.
-
-    Returns:
-        List of Detection objects across all frames.
+    Prefers the model pre-loaded by worker_process_init; falls back to lazy load.
     """
-    model = _load_model()
+    # Try to get the model from the pipeline's shared cache first
+    try:
+        from services.pipeline import _models  # noqa: PLC0415
+        model = _models.get("yolo")
+    except Exception:
+        model = None
+
+    if model is None:
+        model = _load_model()
     if model is None:
         return []
 
@@ -88,16 +93,18 @@ def _run_detection(frame_paths: List[str], conf_threshold: float) -> List[Detect
                 if boxes is None:
                     continue
                 for box in boxes:
+                    conf = float(box.conf.item() if hasattr(box.conf, 'item') else box.conf[0])
+                    if conf < conf_threshold:
+                        continue
                     label_idx = int(box.cls[0])
                     label = model.names.get(label_idx, str(label_idx))
-                    conf = float(box.conf[0])
-                    coords = box.xyxy[0]
-                    xyxy = coords.tolist() if hasattr(coords, "tolist") else list(coords)
+                    xyxy = box.xyxy[0]
+                    bbox = xyxy.tolist() if hasattr(xyxy, 'tolist') else list(xyxy)
                     detections.append(Detection(
                         label=label,
                         confidence=round(conf, 3),
                         frame_path=frame_path,
-                        bbox=xyxy,
+                        bbox=bbox,
                     ))
         except Exception as exc:
             logger.warning(f"YOLO detection failed for frame {frame_path}: {exc}")
@@ -115,7 +122,7 @@ class YOLODetector:
         detections = await detector.detect(frame_paths)
     """
 
-    def __init__(self, conf_threshold: float = 0.4) -> None:
+    def __init__(self, conf_threshold: float = CONFIDENCE_THRESHOLD) -> None:
         self._conf = conf_threshold
 
     async def detect(self, frame_paths: List[str]) -> List[Detection]:

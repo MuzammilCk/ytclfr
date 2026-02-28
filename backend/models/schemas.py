@@ -278,3 +278,20 @@ class PaginatedResponse(BaseModel):
     page: int
     page_size: int
     has_next: bool
+
+
+# ── Analytics ─────────────────────────────────────────────────────────────────
+class AnalyticsOverviewResponse(BaseModel):
+    total_analyses: int
+    completed_analyses: int
+    failed_analyses: int
+    total_videos: int
+    category_breakdown: Dict[str, int]       # {"music": 5, "gaming": 3, ...}
+    avg_processing_time_secs: Optional[float]
+    most_analysed_channel: Optional[str]
+
+
+class AnalyticsByDateResponse(BaseModel):
+    date: str                                # ISO date string, e.g. "2025-01-15"
+    analyses_count: int
+    categories: Dict[str, int]               # category breakdown for that date

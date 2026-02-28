@@ -8,15 +8,19 @@ results to MongoDB.
 from __future__ import annotations
 
 import asyncio
+import shutil
 import time
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from celery import Celery
+from celery.exceptions import SoftTimeLimitExceeded
+from celery.signals import worker_process_init
 from loguru import logger
 
 from core.config import get_settings
+from db.database import get_sync_db
 from services.video_processor.downloader import VideoDownloader
 from services.video_processor.frame_extractor import FrameExtractor
 from services.audio_processor.transcriber import AudioTranscriber
@@ -43,13 +47,16 @@ celery_app.conf.update(
     enable_utc=True,
     task_track_started=True,
     task_acks_late=True,
-    worker_prefetch_multiplier=1,       # process one task at a time per worker
-    task_soft_time_limit=600,           # 10 min soft limit
-    task_time_limit=720,                # 12 min hard limit
-    broker_connection_retry_on_startup=True,  # FIX 1: suppresses deprecation warning
+    worker_prefetch_multiplier=1,
+    task_soft_time_limit=600,
+    task_time_limit=720,
+    broker_connection_retry_on_startup=True,
 )
 
-# Module-level service singletons (one per Celery worker process)
+# ── Module-level model cache (loaded once per worker process) ─────────────────
+_models: Dict[str, Any] = {}
+
+# ── Service singletons (one per Celery worker process) ───────────────────────
 _downloader: Optional[VideoDownloader] = None
 _frame_extractor: Optional[FrameExtractor] = None
 _transcriber: Optional[AudioTranscriber] = None
@@ -57,6 +64,40 @@ _classifier: Optional[MultiModalClassifier] = None
 _tmdb: Optional[TMDbService] = None
 _spotify: Optional[SpotifyService] = None
 _yolo: Optional[YOLODetector] = None
+
+
+@worker_process_init.connect
+def load_models_on_startup(**kwargs):
+    """
+    Pre-load all heavy ML models into the module-level _models dict when
+    a Celery worker process starts. This avoids cold-start latency on the
+    first task and ensures models are shared across tasks in the same process.
+    """
+    global _models
+    logger.info("Worker process init: loading ML models...")
+
+    # Whisper
+    try:
+        from faster_whisper import WhisperModel
+        device = settings.WHISPER_DEVICE
+        try:
+            _models["whisper"] = WhisperModel(settings.WHISPER_MODEL_SIZE, device=device)
+        except Exception:
+            logger.warning("CUDA not available for Whisper — falling back to cpu")
+            _models["whisper"] = WhisperModel(settings.WHISPER_MODEL_SIZE, device="cpu")
+        logger.info(f"Whisper '{settings.WHISPER_MODEL_SIZE}' loaded on {device}")
+    except Exception as exc:
+        logger.error(f"Failed to load Whisper: {exc}")
+
+    # YOLO
+    try:
+        from ultralytics import YOLO
+        _models["yolo"] = YOLO(settings.YOLO_MODEL_PATH)
+        logger.info(f"YOLO '{settings.YOLO_MODEL_PATH}' loaded")
+    except Exception as exc:
+        logger.error(f"Failed to load YOLO: {exc}")
+
+    logger.info("Worker process init: model loading complete.")
 
 
 def _get_services():
@@ -74,63 +115,92 @@ def _get_services():
 
 def _update_status(analysis_id: str, status: str, error: Optional[str] = None):
     """
-    Update analysis job status in PostgreSQL.
-    Runs a raw synchronous DB update to avoid async complexity inside Celery.
-    Uses psycopg2 (sync driver) — NOT asyncpg.
+    Update analysis job status in PostgreSQL using the ORM sync session.
     """
-    import psycopg2
     try:
-        conn = psycopg2.connect(settings.postgres_dsn_sync)
-        cur = conn.cursor()
-        if error:
-            cur.execute(
-                "UPDATE analyses SET status=%s, error_message=%s WHERE id=%s",
-                (status, error, analysis_id),
-            )
-        else:
-            cur.execute(
-                "UPDATE analyses SET status=%s WHERE id=%s",
-                (status, analysis_id),
-            )
-        conn.commit()
-        cur.close()
-        conn.close()
+        from sqlalchemy import text
+        with get_sync_db() as session:
+            if error:
+                session.execute(
+                    text("UPDATE analyses SET status=:status, error_message=:error WHERE id=:id"),
+                    {"status": status, "error": error, "id": analysis_id},
+                )
+            else:
+                session.execute(
+                    text("UPDATE analyses SET status=:status WHERE id=:id"),
+                    {"status": status, "id": analysis_id},
+                )
     except Exception as exc:
         logger.warning(f"Status update failed (non-fatal): {exc}")
 
 
-@celery_app.task(bind=True, name="analyse_video")
+def _check_existing(video_url: str) -> Optional[str]:
+    """Return an existing completed analysis_id for this URL, or None."""
+    try:
+        from sqlalchemy import text
+        with get_sync_db() as session:
+            row = session.execute(
+                text(
+                    "SELECT a.id FROM analyses a "
+                    "JOIN videos v ON a.video_id = v.id "
+                    "WHERE v.youtube_id = :url AND a.status = 'complete' "
+                    "ORDER BY a.created_at DESC LIMIT 1"
+                ),
+                {"url": video_url},
+            ).fetchone()
+            return str(row[0]) if row else None
+    except Exception as exc:
+        logger.warning(f"Dedup check failed (non-fatal): {exc}")
+        return None
+
+
+@celery_app.task(
+    bind=True,
+    name="analyse_video",
+    time_limit=600,
+    soft_time_limit=540,
+    autoretry_for=(ConnectionError,),
+    retry_backoff=True,
+    max_retries=3,
+)
 def analyse_video(
     self,
     analysis_id: str,
     video_url: str,
     video_id_hint: Optional[str] = None,
+    force_reanalysis: bool = False,
 ) -> Dict[str, Any]:
     """
     Main analysis Celery task.
 
     Sequence
     ────────
-    1. Download video + audio
-    2. Extract frames
-    3. Transcribe audio
-    4. Multi-modal classification
-    5. Category-specific extraction
-    6. External API enrichment (TMDb / Spotify)
-    7. Persist results to MongoDB
-    8. Cleanup local files
-
-    Returns the full analysis result dict (also stored in MongoDB).
+    1. Check for existing completed result (dedup)
+    2. Download video + audio
+    3. Extract frames
+    4. Transcribe audio
+    5. Multi-modal classification
+    6. Category-specific extraction
+    7. External API enrichment (TMDb / Spotify)
+    8. Persist results to MongoDB
+    9. Cleanup local files (always, in finally)
     """
     t0 = time.perf_counter()
     downloader, frame_extractor, transcriber, classifier, tmdb, spotify = _get_services()
 
-    # Celery tasks run in their own OS thread — create a fresh event loop.
-    # asyncio.get_event_loop() is deprecated in Python 3.10+ from a non-main thread.
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
 
+    temp_dirs = []
+
     try:
+        # ── Dedup check ───────────────────────────────────────────────────────
+        if not force_reanalysis:
+            existing_id = _check_existing(video_url)
+            if existing_id:
+                logger.info(f"[{analysis_id}] Returning cached result: {existing_id}")
+                return {"analysis_id": existing_id, "cached": True}
+
         # ── Step 1: Download ──────────────────────────────────────────────────
         _update_status(analysis_id, "downloading")
         logger.info(f"[{analysis_id}] Downloading {video_url}")
@@ -139,6 +209,8 @@ def analyse_video(
         audio_path = download_result.audio_path
         metadata = download_result.metadata
         yt_video_id = download_result.video_id
+        if hasattr(download_result, "temp_dir") and download_result.temp_dir:
+            temp_dirs.append(download_result.temp_dir)
 
         # ── Step 2: Frame extraction ──────────────────────────────────────────
         _update_status(analysis_id, "extracting_frames")
@@ -181,7 +253,6 @@ def analyse_video(
         _update_status(analysis_id, "extracting_info")
         extractor = get_extractor(category)
 
-        # For shopping videos: run YOLO on sampled frames and inject detections.
         if category == "shopping" and isinstance(extractor, ShoppingExtractor) and _yolo is not None:
             logger.info(f"[{analysis_id}] Running YOLO detection ({len(frame_result.frame_paths)} frames)")
             yolo_detections = loop.run_until_complete(_yolo.detect(frame_result.frame_paths))
@@ -253,50 +324,44 @@ def analyse_video(
         # ── Step 8: Persist to MongoDB ────────────────────────────────────────
         _persist_to_mongo(analysis_id, result)
 
-        # ── Cleanup ───────────────────────────────────────────────────────────
-        loop.run_until_complete(downloader.cleanup(yt_video_id))
-        frame_extractor.cleanup(yt_video_id)
-
         _update_status(analysis_id, "complete")
-        logger.info(
-            f"[{analysis_id}] Analysis complete in {processing_secs}s"
-        )
+        logger.info(f"[{analysis_id}] Analysis complete in {processing_secs}s")
         return result
 
+    except SoftTimeLimitExceeded:
+        logger.error(f"[{analysis_id}] Soft time limit exceeded")
+        _update_status(analysis_id, "failed", error="Task timed out (soft limit)")
+        raise
     except Exception as exc:
         logger.exception(f"[{analysis_id}] Analysis failed: {exc}")
         _update_status(analysis_id, "failed", error=str(exc))
-        raise   # Celery will mark task as FAILURE
+        raise
     finally:
+        # Always clean up temp dirs regardless of success/failure
+        for temp_dir in temp_dirs:
+            shutil.rmtree(temp_dir, ignore_errors=True)
         loop.close()
 
 
 def _persist_to_mongo(analysis_id: str, result: Dict[str, Any]):
     """
-    Write the full analysis result to MongoDB (synchronous pymongo call).
-    FIX 3: Uses settings.mongo_connection_string which prefers MONGO_URL
-           (Atlas) over MONGO_URI (local) automatically.
+    Write the full analysis result to MongoDB and store the ObjectId back in Postgres.
+    Uses get_sync_db() for the PostgreSQL update instead of raw psycopg2.
     """
     from pymongo import MongoClient
+    from sqlalchemy import text
     try:
-        # FIX 3: Use the property that handles MONGO_URL vs MONGO_URI priority
-        client = MongoClient(settings.mongo_connection_string, serverSelectionTimeoutMS=5000)
+        client = MongoClient(settings.mongodb_url, serverSelectionTimeoutMS=5000)
         db = client[settings.MONGO_DB]
         doc = {"_analysis_id": analysis_id, **result}
         insert_result = db["analysis_results"].insert_one(doc)
         mongo_id = str(insert_result.inserted_id)
         client.close()
 
-        # Store the MongoDB ObjectId back in PostgreSQL for fast retrieval
-        import psycopg2
-        conn = psycopg2.connect(settings.postgres_dsn_sync)
-        cur = conn.cursor()
-        cur.execute(
-            "UPDATE analyses SET mongo_result_id=%s, completed_at=NOW() WHERE id=%s",
-            (mongo_id, analysis_id),
-        )
-        conn.commit()
-        cur.close()
-        conn.close()
+        with get_sync_db() as session:
+            session.execute(
+                text("UPDATE analyses SET mongo_result_id=:mid, completed_at=NOW() WHERE id=:id"),
+                {"mid": mongo_id, "id": analysis_id},
+            )
     except Exception as exc:
         logger.error(f"Failed to persist result to MongoDB: {exc}")

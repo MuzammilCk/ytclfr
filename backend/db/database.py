@@ -1,21 +1,24 @@
 """
 db/database.py
-Async database clients — PostgreSQL via SQLAlchemy + asyncpg,
-MongoDB via Motor, Redis via aioredis.
+Async and sync database clients — PostgreSQL via SQLAlchemy + asyncpg/psycopg2,
+MongoDB via Motor, Redis via redis-py async.
 """
-from typing import AsyncGenerator
+from contextlib import contextmanager
+from typing import AsyncGenerator, Generator
+
+from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from sqlalchemy.orm import DeclarativeBase
-from motor.motor_asyncio import AsyncIOMotorClient
+from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 import redis.asyncio as aioredis
+from motor.motor_asyncio import AsyncIOMotorClient
 
 from core.config import get_settings
 
 settings = get_settings()
 
-# ── PostgreSQL ────────────────────────────────────────────────────────────────
+# ── Async PostgreSQL engine (FastAPI routes) ──────────────────────────────────
 engine = create_async_engine(
-    settings.postgres_dsn,
+    settings.async_database_url,
     echo=settings.DEBUG,
     pool_size=10,
     max_overflow=20,
@@ -30,12 +33,29 @@ AsyncSessionFactory = async_sessionmaker(
 )
 
 
+# ── Sync PostgreSQL engine (Celery tasks / Alembic) ───────────────────────────
+sync_engine = create_engine(
+    settings.database_url,
+    echo=settings.DEBUG,
+    pool_size=5,
+    max_overflow=10,
+    pool_pre_ping=True,
+)
+
+SyncSessionFactory = sessionmaker(
+    bind=sync_engine,
+    autocommit=False,
+    autoflush=False,
+)
+
+
 class Base(DeclarativeBase):
     """Shared declarative base for all SQLAlchemy ORM models."""
     pass
 
 
-async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
+# ── Async session dependency (FastAPI) ───────────────────────────────────────
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """FastAPI dependency: yields an async DB session."""
     async with AsyncSessionFactory() as session:
         try:
@@ -48,6 +68,25 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
             await session.close()
 
 
+# Legacy alias
+get_db_session = get_db
+
+
+# ── Sync session context manager (Celery tasks) ───────────────────────────────
+@contextmanager
+def get_sync_db() -> Generator[Session, None, None]:
+    """Context manager for sync DB access (Celery workers, scripts)."""
+    session: Session = SyncSessionFactory()
+    try:
+        yield session
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
 # ── MongoDB ───────────────────────────────────────────────────────────────────
 _mongo_client: AsyncIOMotorClient | None = None
 
@@ -55,8 +94,7 @@ _mongo_client: AsyncIOMotorClient | None = None
 def get_mongo_client() -> AsyncIOMotorClient:
     global _mongo_client
     if _mongo_client is None:
-        mongo_url = getattr(settings, "MONGO_URL", None) or settings.MONGO_URI
-        _mongo_client = AsyncIOMotorClient(mongo_url)
+        _mongo_client = AsyncIOMotorClient(settings.mongodb_url)
     return _mongo_client
 
 
@@ -77,6 +115,34 @@ async def get_redis() -> aioredis.Redis:
             decode_responses=True,
         )
     return _redis_client
+
+
+# ── Health checks ─────────────────────────────────────────────────────────────
+async def check_postgres() -> dict:
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(__import__("sqlalchemy").text("SELECT 1"))
+        return {"status": "ok"}
+    except Exception as e:
+        return {"status": "error", "detail": str(e)}
+
+
+async def check_mongo() -> dict:
+    try:
+        client = get_mongo_client()
+        await client.admin.command("ping")
+        return {"status": "ok"}
+    except Exception as e:
+        return {"status": "error", "detail": str(e)}
+
+
+async def check_redis() -> dict:
+    try:
+        r = await get_redis()
+        await r.ping()
+        return {"status": "ok"}
+    except Exception as e:
+        return {"status": "error", "detail": str(e)}
 
 
 # ── Lifecycle helpers ─────────────────────────────────────────────────────────

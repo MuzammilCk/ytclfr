@@ -12,10 +12,11 @@ from loguru import logger
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from core.config import get_settings
-from db.database import close_db, init_db
+from db.database import close_db, init_db, check_postgres, check_mongo, check_redis
 from api.routes.analysis import router as analysis_router
 from api.routes.analytics import router as analytics_router
 from api.routes.auth import router as auth_router
+from api.middleware.rate_limiter import RateLimiterMiddleware
 
 settings = get_settings()
 
@@ -47,6 +48,7 @@ def create_app() -> FastAPI:
     )
 
     # ── Middleware ─────────────────────────────────────────────────────────────
+    app.add_middleware(RateLimiterMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.ALLOWED_ORIGINS,
@@ -67,7 +69,28 @@ def create_app() -> FastAPI:
     # ── Health check ───────────────────────────────────────────────────────────
     @app.get("/health", tags=["Ops"])
     async def health():
-        return {"status": "ok", "version": settings.APP_VERSION}
+        """Deep health check — probes each backing service."""
+        pg_ok, pg_err = await check_postgres()
+        mongo_ok, mongo_err = await check_mongo()
+        redis_ok, redis_err = await check_redis()
+        all_ok = pg_ok and mongo_ok and redis_ok
+        return JSONResponse(
+            status_code=200 if all_ok else 503,
+            content={
+                "status": "ok" if all_ok else "degraded",
+                "version": settings.APP_VERSION,
+                "services": {
+                    "postgres": {"ok": pg_ok, "error": pg_err},
+                    "mongodb":  {"ok": mongo_ok, "error": mongo_err},
+                    "redis":    {"ok": redis_ok, "error": redis_err},
+                },
+            },
+        )
+
+    @app.get("/ready", tags=["Ops"])
+    async def ready():
+        """Kubernetes readiness probe — returns 200 once startup is complete."""
+        return {"ready": True}
 
     # ── Global exception handler ───────────────────────────────────────────────
     @app.exception_handler(Exception)

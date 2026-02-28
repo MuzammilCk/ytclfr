@@ -2,7 +2,7 @@ import asyncio
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy import pool
+from sqlalchemy import pool, create_engine
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
@@ -15,7 +15,11 @@ import db.models  # noqa: F401
 settings = get_settings()
 
 config = context.config
-config.set_main_option("sqlalchemy.url", settings.postgres_dsn)
+
+# Use the SYNC database URL — Alembic does not support asyncpg driver
+# Strip +asyncpg if present so Alembic can connect with psycopg2/pg8000
+_raw_url = settings.database_url  # already a sync postgresql:// URL from config
+config.set_main_option("sqlalchemy.url", _raw_url)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)

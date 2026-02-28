@@ -15,7 +15,7 @@ import orjson
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from fastapi.responses import Response, StreamingResponse
 from loguru import logger
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import get_settings
@@ -133,6 +133,11 @@ async def submit_batch(
     redis=Depends(get_redis),
 ):
     """Submit up to 50 YouTube URLs for parallel analysis."""
+    if len(body.urls) > 50:
+        raise HTTPException(
+            status_code=422,
+            detail="Batch size cannot exceed 50 URLs",
+        )
     results = []
     for url in body.urls:
         try:
@@ -215,8 +220,11 @@ async def list_analyses(
     result = await db.execute(q.offset((page - 1) * page_size).limit(page_size))
     analyses = result.scalars().all()
 
-    count_result = await db.execute(select(Analysis))
-    total = len(count_result.scalars().all())
+    # Efficient count via SELECT COUNT(*) instead of loading all rows
+    count_q = select(func.count()).select_from(Analysis)
+    if category:
+        count_q = count_q.join(Video).where(Video.category == category)
+    total = (await db.execute(count_q)).scalar() or 0
 
     return PaginatedResponse(
         items=[
@@ -318,10 +326,13 @@ async def export_result(
         )
 
     elif body.format == "pdf":
-        from reportlab.lib.pagesizes import A4
-        from reportlab.lib.styles import getSampleStyleSheet
-        from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
-        from reportlab.lib import colors
+        try:
+            from reportlab.lib.pagesizes import A4
+            from reportlab.lib.styles import getSampleStyleSheet
+            from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+            from reportlab.lib import colors
+        except ImportError:
+            raise HTTPException(status_code=501, detail="PDF export not available: install reportlab")
 
         buf = io.BytesIO()
         doc_pdf = SimpleDocTemplate(buf, pagesize=A4)

@@ -23,6 +23,12 @@ try:
     import pytesseract
     from PIL import Image
     _TESSERACT_AVAILABLE = True
+    # Set Tesseract executable path from env/settings (Windows needs this)
+    from core.config import get_settings as _get_settings
+    _settings = _get_settings()
+    _cmd = _settings.TESSERACT_CMD
+    if _cmd:
+        pytesseract.pytesseract.tesseract_cmd = _cmd
 except ImportError:
     _TESSERACT_AVAILABLE = False
     logger.warning("pytesseract not installed; OCR will be disabled")
@@ -47,9 +53,12 @@ class OCRService:
     # Regex to filter out single chars, random symbols, and very short junk
     _NOISE_RE = re.compile(r"[^\w\s\-.,!?:/()'\"@#&*+=]")
     _MIN_WORD_LEN = 2
+    # Minimum Laplacian variance — frames below this are considered too blurry for OCR
+    _BLUR_THRESHOLD = float(os.getenv("OCR_TEXT_THRESHOLD", "100.0"))
 
-    def __init__(self, lang: str = "eng"):
-        self.lang = lang
+    def __init__(self, lang: Optional[str] = None):
+        _s = get_settings() if 'get_settings' in dir() else None
+        self.lang = lang or (os.getenv("OCR_LANG") or (_s.OCR_LANG if _s else "eng"))
         self.tesseract_config = "--oem 3 --psm 6"   # OEM3=LSTM, PSM6=assume uniform block of text
 
     # ── Public API ─────────────────────────────────────────────────────────────
@@ -102,6 +111,12 @@ class OCRService:
         try:
             img = cv2.imread(str(frame_path))
             if img is None:
+                return None
+
+            # Blurriness check — skip frames with insufficient texture for OCR
+            gray_check = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            laplacian_var = cv2.Laplacian(gray_check, cv2.CV_64F).var()
+            if laplacian_var < self._BLUR_THRESHOLD:
                 return None
 
             preprocessed = self._preprocess(img)

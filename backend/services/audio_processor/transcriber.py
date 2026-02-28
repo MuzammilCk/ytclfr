@@ -126,7 +126,28 @@ class AudioTranscriber:
         audio_path: str,
         language: Optional[str],
     ) -> TranscriptionResult:
-        model = _load_model()
+        # Prefer the model pre-loaded by the Celery worker_process_init signal;
+        # fall back to the local lazy-load singleton if running outside Celery.
+        try:
+            from services.pipeline import _models  # noqa: PLC0415
+            model = _models.get("whisper")
+        except Exception:
+            model = None
+
+        if model is None:
+            model = _load_model()
+
+        # Duration warning for very long audio
+        try:
+            import wave, contextlib
+            with contextlib.closing(wave.open(audio_path, 'r')) as wf:
+                duration_secs = wf.getnframes() / wf.getframerate()
+                if duration_secs > 1800:
+                    logger.warning(
+                        f"Audio > 30 min ({duration_secs/60:.1f} min) — transcription may be slow"
+                    )
+        except Exception:
+            pass  # non-fatal; just skip the duration check
 
         logger.info(f"Transcribing: {Path(audio_path).name} (language={language or 'auto'})")
 

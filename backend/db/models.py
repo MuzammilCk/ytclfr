@@ -97,6 +97,9 @@ class Video(Base):
     classification_confidence: Mapped[Optional[float]] = mapped_column(Float)
     mongo_analysis_id: Mapped[Optional[str]] = mapped_column(String(24))  # ObjectId ref
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
 
     analyses: Mapped[list["Analysis"]] = relationship("Analysis", back_populates="video")
 
@@ -123,6 +126,9 @@ class Analysis(Base):
     processing_time_secs: Mapped[Optional[float]] = mapped_column(Float)
     mongo_result_id: Mapped[Optional[str]] = mapped_column(String(24))  # ObjectId ref
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
     user: Mapped[Optional["User"]] = relationship("User", back_populates="analyses")
@@ -147,3 +153,6 @@ class SpotifyPlaylist(Base):
     name: Mapped[str] = mapped_column(String(200))
     tracks_added: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
