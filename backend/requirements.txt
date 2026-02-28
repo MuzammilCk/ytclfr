@@ -13,9 +13,10 @@ pydantic-settings==2.7.0
 
 # ── Database ──────────────────────────────────────────────────────────────────
 sqlalchemy==2.0.36
-asyncpg==0.30.0
+asyncpg==0.30.0             # async driver → FastAPI / SQLAlchemy async engine
+psycopg2-binary==2.9.10     # sync driver  → Celery tasks / Alembic migrations
 alembic==1.14.0
-motor==3.7.1            # async MongoDB driver
+motor==3.7.1                # async MongoDB driver
 pymongo==4.11.1
 # redis[asyncio] replaces both redis + the deprecated aioredis package
 redis[asyncio]==5.2.1

@@ -91,7 +91,8 @@ class Video(Base):
     upload_date: Mapped[Optional[str]] = mapped_column(String(20))
     language: Mapped[Optional[str]] = mapped_column(String(10))
     category: Mapped[Optional[VideoCategory]] = mapped_column(
-        Enum(VideoCategory), default=VideoCategory.UNKNOWN
+    Enum(VideoCategory, values_callable=lambda obj: [e.value for e in obj]),
+    default=VideoCategory.UNKNOWN
     )
     classification_confidence: Mapped[Optional[float]] = mapped_column(Float)
     mongo_analysis_id: Mapped[Optional[str]] = mapped_column(String(24))  # ObjectId ref
@@ -114,7 +115,8 @@ class Analysis(Base):
         UUID(as_uuid=True), ForeignKey("videos.id", ondelete="CASCADE"), nullable=False
     )
     status: Mapped[JobStatus] = mapped_column(
-        Enum(JobStatus), default=JobStatus.QUEUED, index=True
+    Enum(JobStatus, values_callable=lambda obj: [e.value for e in obj]),
+    default=JobStatus.QUEUED, index=True
     )
     celery_task_id: Mapped[Optional[str]] = mapped_column(String(64))
     error_message: Mapped[Optional[str]] = mapped_column(Text)
