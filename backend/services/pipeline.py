@@ -111,7 +111,7 @@ def _get_services():
         _tmdb = TMDbService()
         _spotify = SpotifyService()
         _yolo = YOLODetector()
-    return _downloader, _frame_extractor, _transcriber, _classifier, _tmdb, _spotify
+    return _downloader, _frame_extractor, _transcriber, _classifier, _tmdb, _spotify, _yolo
 
 
 def _update_status(analysis_id: str, status: str, error: Optional[str] = None):
@@ -187,7 +187,7 @@ def analyse_video(
     9. Cleanup local files (always, in finally)
     """
     t0 = time.perf_counter()
-    downloader, frame_extractor, transcriber, classifier, tmdb, spotify = _get_services()
+    downloader, frame_extractor, transcriber, classifier, tmdb, spotify, yolo_detector = _get_services()
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -254,9 +254,9 @@ def analyse_video(
         _update_status(analysis_id, "extracting_info")
         extractor = get_extractor(category)
 
-        if category == "shopping" and isinstance(extractor, ShoppingExtractor) and _yolo is not None:
+        if category == "shopping" and isinstance(extractor, ShoppingExtractor) and yolo_detector is not None:
             logger.info(f"[{analysis_id}] Running YOLO detection ({len(frame_result.frame_paths)} frames)")
-            yolo_detections = loop.run_until_complete(_yolo.detect(frame_result.frame_paths))
+            yolo_detections = loop.run_until_complete(yolo_detector.detect(frame_result.frame_paths))
             extractor.detections = yolo_detections
             logger.info(f"[{analysis_id}] YOLO found {len(yolo_detections)} object(s)")
 
@@ -266,6 +266,13 @@ def analyse_video(
             metadata=metadata,
             frame_paths=frame_result.frame_paths,
         )
+
+        if category in ["listicle", "educational", "shopping"]:
+            from services.vision.ocr_service import OCRService
+            ocr = OCRService()
+            logger.info(f"[{analysis_id}] Running OCR on frames")
+            ocr_results = loop.run_until_complete(ocr.extract_from_frames(frame_result.frame_paths))
+            extraction["on_screen_text"] = ocr.aggregate_text(ocr_results)
 
         # ── Step 6: External API enrichment ───────────────────────────────────
         _update_status(analysis_id, "enriching")

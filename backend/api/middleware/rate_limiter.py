@@ -56,6 +56,7 @@ class RateLimiterMiddleware(BaseHTTPMiddleware):
             request.state.rate_limit_remaining = max(0, limit - count)
 
             if count > limit:
+                ttl = window
                 return JSONResponse(
                     status_code=429,
                     content={

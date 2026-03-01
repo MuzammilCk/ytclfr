@@ -199,24 +199,28 @@ class AudioTranscriber:
         Returns path to vocals WAV.
         Requires: pip install spleeter  (not in requirements.txt — optional heavy dep)
         """
-        from spleeter.separator import Separator       # noqa: PLC0415
-        from spleeter.audio.adapter import AudioAdapter  # noqa: PLC0415
+        try:
+            from spleeter.separator import Separator       # noqa: PLC0415
+            from spleeter.audio.adapter import AudioAdapter  # noqa: PLC0415
 
-        separator = Separator("spleeter:2stems")
-        audio_loader = AudioAdapter.default()
+            separator = Separator("spleeter:2stems")
+            audio_loader = AudioAdapter.default()
 
-        out_dir = Path(audio_path).parent / "separated"
-        separator.separate_to_file(
-            audio_path,
-            str(out_dir),
-            codec="wav",
-            synchronous=True,
-        )
+            out_dir = Path(audio_path).parent / "separated"
+            separator.separate_to_file(
+                audio_path,
+                str(out_dir),
+                codec="wav",
+                synchronous=True,
+            )
 
-        stem_name = Path(audio_path).stem
-        vocals_path = out_dir / stem_name / "vocals.wav"
-        if not vocals_path.exists():
-            raise FileNotFoundError(f"Spleeter did not produce vocals at {vocals_path}")
+            stem_name = Path(audio_path).stem
+            vocals_path = out_dir / stem_name / "vocals.wav"
+            if not vocals_path.exists():
+                raise FileNotFoundError(f"Spleeter did not produce vocals at {vocals_path}")
 
-        logger.info(f"Source separation complete → {vocals_path}")
-        return str(vocals_path)
+            logger.info(f"Source separation complete → {vocals_path}")
+            return str(vocals_path)
+        except ImportError:
+            logger.warning("Spleeter is not installed. Uncomment spleeter==2.3.2 in requirements.txt to enable source separation. Falling back to original audio.")
+            return audio_path

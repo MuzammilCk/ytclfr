@@ -1,0 +1,44 @@
+Traceback (most recent call last):
+  File "<string>", line 4, in <module>
+    from services.pipeline import celery_app
+  File "D:\projects\youtube-classifier\backend\services\pipeline.py", line 17, in <module>
+    from celery import Celery
+  File "<frozen importlib._bootstrap>", line 1412, in _handle_fromlist
+  File "C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\local.py", line 460, in __getattr__
+    module = __import__(self._object_origins[name], None, None,
+                        [name])
+  File "C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\app\__init__.py", line 2, in <module>
+    from celery import _state
+  File "C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\_state.py", line 15, in <module>
+    from celery.utils.threads import LocalStack
+  File "C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\celery\utils\__init__.py", line 6, in <module>
+    from kombu.utils.objects import cached_property
+  File "C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\utils\__init__.py", line 6, in <module>
+    from .compat import fileno, maybe_fileno, nested, register_after_fork
+  File "C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\utils\compat.py", line 12, in <module>
+    from kombu.exceptions import reraise
+  File "C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\kombu\exceptions.py", line 9, in <module>
+    from amqp import ChannelError, ConnectionError, ResourceError
+  File "C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\__init__.py", line 31, in <module>
+    from .connection import Connection  # noqa
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\connection.py", line 13, in <module>
+    from . import __version__, sasl, spec
+  File "C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\sasl.py", line 156, in <module>
+    GSSAPI = _get_gssapi_mechanism()
+  File "C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\amqp\sasl.py", line 81, in _get_gssapi_mechanism
+    import gssapi
+  File "C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\__init__.py", line 29, in <module>
+    import gssapi._win_config  # noqa
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py", line 89, in <module>
+    configure_windows()
+    ~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py", line 85, in configure_windows
+    error_not_found()
+    ~~~~~~~~~~~~~~~^^
+  File "C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\gssapi\_win_config.py", line 49, in error_not_found
+    raise OSError(
+    ...<4 lines>...
+    )
+OSError: Could not find KfW installation. Please download and install the 64bit Kerberos for Windows MSI from https://web.mit.edu/KERBEROS/dist and ensure the 'bin' folder (C:\Program Files\MIT\Kerberos\bin) is in your PATH.
