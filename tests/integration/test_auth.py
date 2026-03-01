@@ -53,6 +53,9 @@ def _make_mock_db():
                 obj.is_active = True
             if hasattr(obj, "created_at") and obj.created_at is None:
                 obj.created_at = now
+            if not hasattr(obj, "role") or obj.role is None:
+                from db.models import UserRole
+                obj.role = UserRole.USER
 
     mock_session.add = MagicMock(side_effect=_track_add)
     mock_session.flush = _flush_and_populate_defaults
@@ -63,12 +66,36 @@ def _make_mock_db():
 @pytest.fixture
 async def client():
     """HTTP test client with DB dependency overridden to a mock session."""
+    import unittest.mock
     mock_session = _make_mock_db()
+
+    # Mock Redis for rate limiter middleware (avoids 429 in tests)
+    mock_redis = AsyncMock()
+    mock_redis.zadd = AsyncMock()
+    mock_redis.zremrangebyscore = AsyncMock()
+    mock_redis.zcard = AsyncMock(return_value=0)
+    mock_redis.expire = AsyncMock()
+    mock_redis.get = AsyncMock(return_value=None)
+    mock_redis.set = AsyncMock(return_value=True)
+    mock_redis.exists = AsyncMock(return_value=0)
 
     async def override_get_db():
         yield mock_session
 
     app.dependency_overrides[get_db_session] = override_get_db
+    # Patch BOTH the middleware and the direct get_redis() call in auth routes
+    patcher_mw = unittest.mock.patch(
+        "api.middleware.rate_limiter.get_redis",
+        new_callable=unittest.mock.AsyncMock,
+        return_value=mock_redis,
+    )
+    patcher_db = unittest.mock.patch(
+        "db.database.get_redis",
+        new_callable=unittest.mock.AsyncMock,
+        return_value=mock_redis,
+    )
+    patcher_mw.start()
+    patcher_db.start()
     try:
         async with AsyncClient(
             transport=ASGITransport(app=app),
@@ -76,6 +103,8 @@ async def client():
         ) as ac:
             yield ac
     finally:
+        patcher_db.stop()
+        patcher_mw.stop()
         app.dependency_overrides.pop(get_db_session, None)
 
 

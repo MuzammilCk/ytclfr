@@ -33,7 +33,7 @@ from pathlib import Path
 import pandas as pd
 import torch
 import torch.nn as nn
-from torch.cuda.amp import GradScaler, autocast
+from torch.amp import GradScaler, autocast
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.data import DataLoader, Dataset, random_split
@@ -42,7 +42,7 @@ from PIL import Image, UnidentifiedImageError
 from sklearn.metrics import classification_report, confusion_matrix
 import numpy as np
 
-CATEGORIES = ["comedy", "listicle", "music", "educational", "news", "review", "gaming", "vlog"]
+CATEGORIES = ["comedy", "listicle", "music", "educational", "news", "review", "gaming", "vlog", "shopping"]
 N_CLASSES = len(CATEGORIES)
 
 
@@ -141,7 +141,7 @@ def train_epoch(model, loader, optimizer, criterion, scaler, device):
     for imgs, labels in loader:
         imgs, labels = imgs.to(device), labels.to(device)
         optimizer.zero_grad(set_to_none=True)
-        with autocast(enabled=device.type == "cuda"):
+        with autocast(device.type, enabled=device.type == "cuda"):
             logits = model(imgs)
             loss = criterion(logits, labels)
         scaler.scale(loss).backward()
@@ -162,7 +162,7 @@ def eval_epoch(model, loader, criterion, device):
     all_preds, all_labels = [], []
     for imgs, labels in loader:
         imgs, labels = imgs.to(device), labels.to(device)
-        with autocast(enabled=device.type == "cuda"):
+        with autocast(device.type, enabled=device.type == "cuda"):
             logits = model(imgs)
             loss = criterion(logits, labels)
         total_loss += loss.item() * imgs.size(0)
@@ -233,10 +233,9 @@ def main():
         weight_decay=1e-4,
     )
     scheduler = CosineAnnealingLR(optimizer, T_max=args.epochs, eta_min=1e-6)
-    scaler = GradScaler(enabled=device.type == "cuda")
+    scaler = GradScaler("cuda", enabled=device.type == "cuda")
 
     best_val_acc = 0.0
-    history = []
 
     for epoch in range(1, args.epochs + 1):
         # Unfreeze backbone after warm-up
@@ -249,11 +248,6 @@ def main():
         train_loss, train_acc = train_epoch(model, train_loader, optimizer, criterion, scaler, device)
         val_loss, val_acc, val_preds, val_labels = eval_epoch(model, val_loader, criterion, device)
         scheduler.step()
-
-        history.append({
-            "epoch": epoch, "train_loss": train_loss, "train_acc": train_acc,
-            "val_loss": val_loss, "val_acc": val_acc,
-        })
 
         print(
             f"Epoch {epoch:2d}/{args.epochs}  "

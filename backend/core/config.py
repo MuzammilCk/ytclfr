@@ -28,6 +28,13 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     ENVIRONMENT: str = "production"          # development | staging | production
     SECRET_KEY: str = "change-me-in-production-use-openssl-rand-hex-32"
+    SENTRY_DSN: Optional[str] = None
+
+    @model_validator(mode="after")
+    def validate_secret_key(self) -> "Settings":
+        if self.ENVIRONMENT == "production" and self.SECRET_KEY == "change-me-in-production-use-openssl-rand-hex-32":
+            raise ValueError("SECRET_KEY must be changed in production. Run: openssl rand -hex 32")
+        return self
 
     ALLOWED_ORIGINS: Annotated[List[str], NoDecode] = [
         "http://localhost:3000",
@@ -102,7 +109,7 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
 
     # ── Rate Limiting ─────────────────────────────────────────────────────────
-    RATE_LIMIT_PER_MINUTE: int = 20
+    RATE_LIMIT_PER_MINUTE: int = 300
 
     @field_validator("ALLOWED_ORIGINS", mode="before")
     @classmethod

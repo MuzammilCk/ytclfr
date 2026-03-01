@@ -16,6 +16,7 @@ from db.database import close_db, init_db, check_postgres, check_mongo, check_re
 from api.routes.analysis import router as analysis_router
 from api.routes.analytics import router as analytics_router
 from api.routes.auth import router as auth_router
+from api.routes.users import router as users_router
 from api.middleware.rate_limiter import RateLimiterMiddleware
 
 settings = get_settings()
@@ -24,6 +25,32 @@ settings = get_settings()
 # ── Lifespan (startup / shutdown) ─────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    if settings.ENVIRONMENT == "production":
+        import sys
+        import json
+        logger.remove()
+
+        def json_sink(message):
+            record = message.record
+            log_dict = {
+                "time": record["time"].isoformat(),
+                "level": record["level"].name,
+                "message": record["message"],
+                "module": record["module"],
+            }
+            sys.stdout.write(json.dumps(log_dict) + "\n")
+            sys.stdout.flush()
+
+        logger.add(json_sink)
+
+        if settings.SENTRY_DSN:
+            import sentry_sdk
+            sentry_sdk.init(
+                dsn=settings.SENTRY_DSN,
+                environment=settings.ENVIRONMENT,
+                traces_sample_rate=1.0,
+            )
+
     logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
     await init_db()
     yield
@@ -48,17 +75,25 @@ def create_app() -> FastAPI:
     )
 
     # ── Middleware ─────────────────────────────────────────────────────────────
+    import uuid
+    from starlette.middleware.base import BaseHTTPMiddleware
+
+    class CorrelationIDMiddleware(BaseHTTPMiddleware):
+        async def dispatch(self, request: Request, call_next):
+            req_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+            request.state.request_id = req_id
+            response = await call_next(request)
+            response.headers["X-Request-ID"] = req_id
+            return response
+
     # Starlette applies middleware in REVERSE registration order.
     # Add CORSMiddleware LAST so it wraps everything and always fires.
+    app.add_middleware(CorrelationIDMiddleware)
     app.add_middleware(GZipMiddleware, minimum_size=1024)
     app.add_middleware(RateLimiterMiddleware)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[
-            "http://localhost:3000",
-            "http://127.0.0.1:3000",
-            "http://localhost:5173",
-        ],
+        allow_origins=settings.ALLOWED_ORIGINS,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -71,6 +106,7 @@ def create_app() -> FastAPI:
     app.include_router(analysis_router)
     app.include_router(analytics_router)
     app.include_router(auth_router)
+    app.include_router(users_router)
 
     # ── Health check ───────────────────────────────────────────────────────────
     @app.get("/health", tags=["Ops"])
@@ -79,7 +115,21 @@ def create_app() -> FastAPI:
         pg_ok, pg_err = await check_postgres()
         mongo_ok, mongo_err = await check_mongo()
         redis_ok, redis_err = await check_redis()
-        all_ok = pg_ok and mongo_ok and redis_ok
+        
+        celery_ok = False
+        celery_err = None
+        try:
+            from services.pipeline import celery_app
+            i = celery_app.control.inspect()
+            stats = i.stats()
+            if stats:
+                celery_ok = True
+            else:
+                celery_err = "No active workers found"
+        except Exception as e:
+            celery_err = str(e)
+
+        all_ok = pg_ok and mongo_ok and redis_ok and celery_ok
         return JSONResponse(
             status_code=200 if all_ok else 503,
             content={
@@ -89,6 +139,7 @@ def create_app() -> FastAPI:
                     "postgres": {"ok": pg_ok, "error": pg_err},
                     "mongodb":  {"ok": mongo_ok, "error": mongo_err},
                     "redis":    {"ok": redis_ok, "error": redis_err},
+                    "celery":   {"ok": celery_ok, "error": celery_err},
                 },
             },
         )
@@ -105,11 +156,7 @@ def create_app() -> FastAPI:
         origin = request.headers.get("origin", "")
         headers = {}
         # Mirror CORS headers manually so the browser can read the error body
-        allowed = [
-            "http://localhost:3000",
-            "http://127.0.0.1:3000",
-            "http://localhost:5173",
-        ]
+        allowed = settings.ALLOWED_ORIGINS
         if origin in allowed:
             headers["Access-Control-Allow-Origin"] = origin
             headers["Access-Control-Allow-Credentials"] = "true"

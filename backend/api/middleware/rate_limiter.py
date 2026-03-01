@@ -51,12 +51,13 @@ class RateLimiterMiddleware(BaseHTTPMiddleware):
 
         redis_key = f"rate_limit_sw:{client_ip}"
         window    = 60   # seconds
-        limit     = settings.RATE_LIMIT_PER_MINUTE  # e.g. 300
-        if not request.headers.get("Authorization"):
+        if request.headers.get("Authorization"):
+            limit = settings.RATE_LIMIT_PER_MINUTE  # e.g. 300
+        else:
             if request.method == "GET":
-                limit = 60
+                limit = 10
             else:
-                limit = 10   # anonymous tier
+                limit = 5    # anonymous tier
 
         try:
             redis = await get_redis()

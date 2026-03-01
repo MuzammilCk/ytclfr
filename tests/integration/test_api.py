@@ -59,6 +59,11 @@ def _make_mock_redis():
     redis.set = AsyncMock(return_value=True)
     redis.delete = AsyncMock(return_value=1)
     redis.exists = AsyncMock(return_value=0)
+    # mock for rate limiter middleware
+    redis.zadd = AsyncMock()
+    redis.zremrangebyscore = AsyncMock()
+    redis.zcard = AsyncMock(return_value=0)
+    redis.expire = AsyncMock()
     return redis
 
 
@@ -76,15 +81,47 @@ async def client():
 
     app.dependency_overrides[get_db_session] = override_get_db
     app.dependency_overrides[get_redis] = override_get_redis
+
+    # Patch services.pipeline in sys.modules so the /health lazy-import sees a mock.
+    # This avoids loading the full Celery+ML stack in the test environment.
+    import sys
+    import unittest.mock
+    import types
+
+    fake_celery_app = unittest.mock.MagicMock()
+    class _FakeInspect:
+        def stats(self):
+            return {"celery@test-worker": {"broker": "redis://ok"}}
+    fake_celery_app.control.inspect.return_value = _FakeInspect()
+
+    fake_pipeline = types.ModuleType("services.pipeline")
+    fake_pipeline.celery_app = fake_celery_app
+    # analyse_video is imported lazily by the submit_analysis route
+    fake_analyse_video = unittest.mock.MagicMock()
+    fake_analyse_video.delay.return_value = unittest.mock.MagicMock(id="test-task-id")
+    fake_pipeline.analyse_video = fake_analyse_video
+    # Keep any already-loaded real module so we can restore it
+    _old_pipeline = sys.modules.get("services.pipeline")
+    sys.modules["services.pipeline"] = fake_pipeline
+
     try:
-        async with AsyncClient(
-            transport=ASGITransport(app=app),
-            base_url="http://test",
-        ) as ac:
-            yield ac
+        with unittest.mock.patch(
+            "api.middleware.rate_limiter.get_redis",
+            new_callable=unittest.mock.AsyncMock,
+            return_value=mock_redis,
+        ):
+            async with AsyncClient(
+                transport=ASGITransport(app=app),
+                base_url="http://test",
+            ) as ac:
+                yield ac
     finally:
         app.dependency_overrides.pop(get_db_session, None)
         app.dependency_overrides.pop(get_redis, None)
+        if _old_pipeline is None:
+            sys.modules.pop("services.pipeline", None)
+        else:
+            sys.modules["services.pipeline"] = _old_pipeline
 
 
 class TestHealthEndpoint:

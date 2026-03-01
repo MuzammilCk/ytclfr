@@ -20,9 +20,11 @@ settings = get_settings()
 engine = create_async_engine(
     settings.async_database_url,
     echo=settings.DEBUG,
-    pool_size=10,
-    max_overflow=20,
+    pool_size=20,
+    max_overflow=40,
+    pool_recycle=3600,
     pool_pre_ping=True,
+    connect_args={"server_settings": {"application_name": "backend"}},
 )
 
 AsyncSessionFactory = async_sessionmaker(
@@ -37,9 +39,11 @@ AsyncSessionFactory = async_sessionmaker(
 sync_engine = create_engine(
     settings.database_url,
     echo=settings.DEBUG,
-    pool_size=5,
-    max_overflow=10,
+    pool_size=10,
+    max_overflow=20,
+    pool_recycle=3600,
     pool_pre_ping=True,
+    connect_args={"application_name": "celery_worker"},
 )
 
 SyncSessionFactory = sessionmaker(
@@ -120,8 +124,9 @@ async def get_redis() -> aioredis.Redis:
 # ── Health checks ─────────────────────────────────────────────────────────────
 async def check_postgres() -> tuple[bool, str | None]:
     try:
+        from sqlalchemy import text
         async with engine.connect() as conn:
-            await conn.execute(__import__("sqlalchemy").text("SELECT 1"))
+            await conn.execute(text("SELECT 1"))
         return True, None
     except Exception as e:
         return False, str(e)

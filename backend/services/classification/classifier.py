@@ -69,6 +69,21 @@ class FrameClassifier(nn.Module):
         )
         self.backbone = backbone
 
+        # Load local fine-tuned weights if available
+        ckpt_path = Path("checkpoints/best_frame_model.pth")
+        if ckpt_path.exists():
+            try:
+                state_dict = torch.load(ckpt_path, map_location="cpu", weights_only=True)
+                # Unwrap from nn.DataParallel/DDP if necessary
+                if list(state_dict.keys())[0].startswith("module."):
+                    state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
+                self.load_state_dict(state_dict)
+                logger.info("ytclfr-classify: Loaded fine-tuned vision weights.")
+            except Exception as e:
+                logger.warning(f"ytclfr-classify: Failed to load vision checkpoint: {e}")
+        else:
+            logger.warning("ytclfr-classify: Vision checkpoint not found. Using untuned backbone.")
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.backbone(x)
 
@@ -96,6 +111,20 @@ class TextClassifier(nn.Module):
             nn.Dropout(0.2),
             nn.Linear(256, n_classes),
         )
+
+        # Load local fine-tuned weights if available
+        ckpt_path = Path("checkpoints/best_text_model.pth")
+        if ckpt_path.exists():
+            try:
+                state_dict = torch.load(ckpt_path, map_location="cpu", weights_only=True)
+                if list(state_dict.keys())[0].startswith("module."):
+                    state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
+                self.load_state_dict(state_dict)
+                logger.info("ytclfr-classify: Loaded fine-tuned text weights.")
+            except Exception as e:
+                logger.warning(f"ytclfr-classify: Failed to load text checkpoint: {e}")
+        else:
+            logger.warning("ytclfr-classify: Text checkpoint not found. Using untuned backbone.")
 
     def forward(self, input_ids, attention_mask, token_type_ids=None):
         out = self.bert(

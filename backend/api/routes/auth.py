@@ -17,8 +17,9 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
+import time
 from jose import JWTError, jwt
-from passlib.context import CryptContext
+import bcrypt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -39,21 +40,21 @@ from models.schemas import (
 settings = get_settings()
 router = APIRouter(prefix="/api/v1/auth", tags=["Auth"])
 
-_pwd_ctx = CryptContext(
-    schemes=["bcrypt"],
-    deprecated="auto",
-    bcrypt__truncate_error=False,
-)
-
 
 # ── JWT helpers ────────────────────────────────────────────────────────────────
 
 def _hash_password(password: str) -> str:
-    return _pwd_ctx.hash(password)
+    # bcrypt requires bytes, returns bytes. We store as a string.
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
+    return hashed.decode('utf-8')
 
 
 def _verify_password(plain: str, hashed: str) -> bool:
-    return _pwd_ctx.verify(plain, hashed)
+    try:
+        return bcrypt.checkpw(plain.encode('utf-8'), hashed.encode('utf-8'))
+    except ValueError:
+        return False
 
 
 def _create_token(data: dict, expires_delta: timedelta) -> str:
@@ -93,12 +94,27 @@ async def get_current_user(
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
+    from db.database import get_redis
+    redis = await get_redis()
+    if await redis.get(f"token_blacklist:{token}"):
+        raise HTTPException(status_code=401, detail="Token has been revoked")
+
     result = await db.execute(select(User).where(User.id == uuid.UUID(user_id)))
     user = result.scalar_one_or_none()
     if not user or not user.is_active:
         raise HTTPException(status_code=401, detail="User not found or inactive")
     return user
 
+
+async def get_current_admin(current_user: User = Depends(get_current_user)) -> User:
+    """FastAPI dependency — requires the user to have the ADMIN role."""
+    from db.models import UserRole
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Requires administrative privileges",
+        )
+    return current_user
 
 # ── Routes ────────────────────────────────────────────────────────────────────
 
@@ -204,6 +220,25 @@ async def refresh_tokens(request: Request, db: AsyncSession = Depends(get_db_ses
 async def get_me(current_user: User = Depends(get_current_user)):
     """Return the currently authenticated user's profile."""
     return current_user
+
+
+@router.post("/logout")
+async def logout(request: Request):
+    """Invalidate current token via Redis blacklist."""
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer "):
+        token = auth.split(" ", 1)[1]
+        try:
+            payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+            exp = payload.get("exp", 0)
+            ttl = max(0, exp - int(time.time()))
+            
+            from db.database import get_redis
+            redis = await get_redis()
+            await redis.setex(f"token_blacklist:{token}", ttl, "1")
+        except Exception:
+            pass
+    return OKResponse(message="Logged out")
 
 
 # ── Spotify OAuth ─────────────────────────────────────────────────────────────

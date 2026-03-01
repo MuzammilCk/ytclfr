@@ -26,14 +26,14 @@ import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
-from torch.cuda.amp import GradScaler, autocast
+from torch.amp import GradScaler, autocast
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import get_linear_schedule_with_warmup
 from torch.utils.data import DataLoader, Dataset, random_split
 from transformers import BertModel, BertTokenizer
 from sklearn.metrics import classification_report
 
-CATEGORIES = ["comedy", "listicle", "music", "educational", "news", "review", "gaming", "vlog"]
+CATEGORIES = ["comedy", "listicle", "music", "educational", "news", "review", "gaming", "vlog", "shopping"]
 N_CLASSES = len(CATEGORIES)
 MAX_LEN = 512
 
@@ -105,7 +105,7 @@ def train_epoch(model, loader, optimizer, scheduler, criterion, scaler, device):
         labels         = batch["label"].to(device)
 
         optimizer.zero_grad(set_to_none=True)
-        with autocast(enabled=device.type == "cuda"):
+        with autocast(device.type, enabled=device.type == "cuda"):
             logits = model(input_ids, attention_mask, token_type_ids)
             loss   = criterion(logits, labels)
 
@@ -132,7 +132,7 @@ def eval_epoch(model, loader, criterion, device):
         attention_mask = batch["attention_mask"].to(device)
         token_type_ids = batch["token_type_ids"].to(device)
         labels         = batch["label"].to(device)
-        with autocast(enabled=device.type == "cuda"):
+        with autocast(device.type, enabled=device.type == "cuda"):
             logits = model(input_ids, attention_mask, token_type_ids)
             loss   = criterion(logits, labels)
         total_loss += loss.item() * labels.size(0)
@@ -182,7 +182,7 @@ def main():
     scheduler = get_linear_schedule_with_warmup(
         optimizer, num_warmup_steps=warmup_steps, num_training_steps=total_steps
     )
-    scaler = GradScaler(enabled=device.type == "cuda")
+    scaler = GradScaler("cuda", enabled=device.type == "cuda")
 
     best_val_acc = 0.0
 

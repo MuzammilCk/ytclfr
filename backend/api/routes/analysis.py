@@ -12,10 +12,11 @@ from functools import lru_cache
 from typing import List, Optional
 
 import orjson
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status, Request
 from fastapi.responses import Response, StreamingResponse
 from loguru import logger
 from sqlalchemy import func, select
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import get_settings
@@ -213,7 +214,7 @@ async def list_analyses(
     db: AsyncSession = Depends(get_db_session),
 ):
     """List all submitted analyses (paginated)."""
-    q = select(Analysis).order_by(Analysis.created_at.desc())
+    q = select(Analysis).options(selectinload(Analysis.video)).order_by(Analysis.created_at.desc())
 
     if category:
         q = q.join(Video).where(Video.category == category)
@@ -234,6 +235,7 @@ async def list_analyses(
                 "status": a.status.value,
                 "video_id": str(a.video_id),
                 "created_at": a.created_at.isoformat(),
+                "category": a.video.category.value if a.video and a.video.category else None,
             }
             for a in analyses
         ],
@@ -515,9 +517,10 @@ async def export_result(
     raise HTTPException(status_code=400, detail="Unsupported export format")
 
 
-@router.post("/spotify-playlist", response_model=SpotifyPlaylistResponse)
+@router.post("/spotify-playlist")
 async def create_spotify_playlist(
     body: SpotifyPlaylistRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db_session),
 ):
     """
@@ -546,12 +549,36 @@ async def create_spotify_playlist(
     if not tracks:
         raise HTTPException(status_code=400, detail="No tracks found in analysis output")
 
-    # NOTE: In production, retrieve user's Spotify token from the DB
-    # For this demo, we return a 501 that documents the requirement
-    raise HTTPException(
-        status_code=501,
-        detail=(
-            "Spotify OAuth flow required. Connect Spotify via "
-            "/api/v1/auth/spotify, then retry this endpoint."
-        ),
-    )
+    # Ensure user is authenticated to fetch their Spotify token
+    from api.routes.auth import get_current_user
+    current_user = await get_current_user(request, db)
+
+    if not current_user.spotify_access_token:
+        raise HTTPException(
+            status_code=401,
+            detail="Spotify not connected. Visit /api/v1/auth/spotify to connect your account."
+        )
+
+    svc = _get_spotify_service()
+    try:
+        sp_user_id = await svc.get_current_user_id(current_user.spotify_access_token)
+    except Exception as exc:
+        raise HTTPException(status_code=401, detail=f"Spotify token invalid or expired: {exc}")
+
+    try:
+        result = await svc.create_playlist(
+            user_access_token=current_user.spotify_access_token,
+            user_spotify_id=sp_user_id,
+            playlist_name=f"YT: {doc.get('video', {}).get('title', 'Unknown Title')} Extracts",
+            tracks=tracks,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Playlist creation failed: {exc}")
+
+    return {
+        "status": "success",
+        "playlist_id": result.playlist_id,
+        "playlist_url": result.playlist_url,
+        "tracks_added": result.tracks_added,
+        "tracks_not_found": result.tracks_not_found
+    }

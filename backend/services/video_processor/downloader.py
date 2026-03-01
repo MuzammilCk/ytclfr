@@ -36,6 +36,7 @@ class DownloadResult:
     audio_path: str
     metadata: Dict[str, Any]
     thumbnail_path: Optional[str] = None
+    temp_dir: Optional[str] = None
 
 
 def extract_video_id(url: str) -> Optional[str]:

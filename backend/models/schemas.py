@@ -39,10 +39,18 @@ class UserResponse(BaseModel):
     id: UUID
     email: str
     display_name: Optional[str]
+    role: str
     is_active: bool
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class UserRoleUpdateRequest(BaseModel):
+    role: str = Field(..., description="Must be 'user' or 'admin'")
+
+class UserStatusUpdateRequest(BaseModel):
+    is_active: bool
 
 
 # ── Analysis submission ────────────────────────────────────────────────────────
