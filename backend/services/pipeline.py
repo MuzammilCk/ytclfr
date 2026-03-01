@@ -235,6 +235,17 @@ def analyse_video(
             for s in transcription.segments
         ]
 
+        # ── Step 3b: Pre-classification OCR ───────────────────────────────────
+        ocr_text_for_classification = ""
+        try:
+            from services.vision.ocr_service import OCRService
+            ocr = OCRService()
+            logger.info(f"[{analysis_id}] Running lightweight pre-classification OCR")
+            ocr_results = loop.run_until_complete(ocr.extract_from_frames(frame_result.frame_paths, max_frames=8))
+            ocr_text_for_classification = ocr.aggregate_text(ocr_results)
+        except Exception as exc:
+            logger.warning(f"[{analysis_id}] Pre-classification OCR failed (non-fatal): {exc}")
+
         # ── Step 4: Classification ────────────────────────────────────────────
         _update_status(analysis_id, "classifying")
         classification = classifier.predict(
@@ -243,6 +254,7 @@ def analyse_video(
             title=metadata.get("title", ""),
             description=metadata.get("description", ""),
             tags=metadata.get("tags", []),
+            ocr_text=ocr_text_for_classification,
         )
         category = classification.predicted_category
         logger.info(
@@ -267,12 +279,24 @@ def analyse_video(
             frame_paths=frame_result.frame_paths,
         )
 
-        if category in ["listicle", "educational", "shopping"]:
+        if category in ["listicle", "educational", "shopping", "unknown"]:
             from services.vision.ocr_service import OCRService
             ocr = OCRService()
             logger.info(f"[{analysis_id}] Running OCR on frames")
             ocr_results = loop.run_until_complete(ocr.extract_from_frames(frame_result.frame_paths))
-            extraction["on_screen_text"] = ocr.aggregate_text(ocr_results)
+            ocr_aggregated = ocr.aggregate_text(ocr_results)
+            extraction["on_screen_text"] = ocr_aggregated
+
+            if category == "listicle" and ocr_aggregated:
+                logger.info(f"[{analysis_id}] Re-running listicle extraction with combined OCR text")
+                combined_text = transcript_text + "\n" + ocr_aggregated
+                extraction = extractor.extract(
+                    transcript_text=combined_text,
+                    segments=transcript_segments,
+                    metadata=metadata,
+                    frame_paths=frame_result.frame_paths,
+                )
+                extraction["on_screen_text"] = ocr_aggregated
 
         # ── Step 6: External API enrichment ───────────────────────────────────
         _update_status(analysis_id, "enriching")

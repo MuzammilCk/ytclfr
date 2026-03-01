@@ -239,6 +239,7 @@ class ListicleExtractor(BaseExtractor):
             items.append({
                 "rank": rank,
                 "title": clean_title,
+                "source": "transcript",
                 "description": None,    # will be enriched by TMDbService
                 "year": None,
                 "tmdb_rating": None,
@@ -248,12 +249,104 @@ class ListicleExtractor(BaseExtractor):
                 "imdb_url": None,
             })
 
+        if len(items) < 2:
+            tag_items = self._extract_from_tags(metadata.get("tags", []))
+            hashtag_items = self._extract_from_description_hashtags(metadata.get("description", ""))
+
+            combined_map = {}
+            for item in tag_items + hashtag_items:
+                key = item["title"].lower()
+                if key not in combined_map:
+                    combined_map[key] = item
+
+            if combined_map:
+                sorted_items = sorted(combined_map.values(), key=lambda x: x["confidence"], reverse=True)
+                items = []
+                for i, item in enumerate(sorted_items):
+                    items.append({
+                        "rank": i + 1,
+                        "title": item["title"],
+                        "source": item["source"],
+                        "description": None,
+                        "year": None,
+                        "tmdb_rating": None,
+                        "tmdb_id": None,
+                        "poster_url": None,
+                        "streaming": None,
+                        "imdb_url": None,
+                    })
+
+        summary = None
+        if items and not transcript_text.strip().replace(".", ""):
+            names = ", ".join(i["title"] for i in items[:5])
+            suffix = f" and {len(items) - 5} more" if len(items) > 5 else ""
+            summary = f"A movie/media list featuring: {names}{suffix}."
+
         return {
             "type": "listicle",
             "list_title": metadata.get("title", ""),
+            "summary": summary,
             "items": items,
             "total_count": len(items),
         }
+
+    @staticmethod
+    def _extract_from_tags(tags: List[str]) -> List[Dict[str, Any]]:
+        noise_words = {
+            "shorts", "youtube", "viral", "trending", "subscribe", "like", "follow", "edit", "video", "clip", "scene", "part",
+            "best", "top", "only", "all", "time", "ever", "must", "watch", "movie", "movies", "film", "films", "show", "shows",
+            "list", "ranking", "ranked", "review", "reaction", "cinema", "hollywood", "netflix", "hbo", "disney", "slowed",
+            "reverb", "lofi", "cover", "remix", "music", "song", "songs", "track", "playlist", "album"
+        }
+        items = []
+        for i, tag in enumerate(tags):
+            tag = tag.lower().strip()
+            if tag.startswith("#"):
+                tag = tag[1:]
+            
+            for s in ["edit", "slowed", "reverb", "remix", "clip", "scene"]:
+                if tag.endswith(s):
+                    tag = tag[:-len(s)].strip()
+            
+            if len(tag) < 3 or tag in noise_words or tag.startswith("http") or tag.startswith("@"):
+                continue
+                
+            items.append({
+                "title": tag.title(),
+                "source": "tag",
+                "confidence": 1.0 - (i * 0.01)
+            })
+        return items
+
+    @staticmethod
+    def _extract_from_description_hashtags(description: str) -> List[Dict[str, Any]]:
+        noise_words = {
+            "shorts", "youtube", "viral", "trending", "subscribe", "like", "follow", "edit", "video", "clip", "scene", "part",
+            "best", "top", "only", "all", "time", "ever", "must", "watch", "movie", "movies", "film", "films", "show", "shows",
+            "list", "ranking", "ranked", "review", "reaction", "cinema", "hollywood", "netflix", "hbo", "disney", "slowed",
+            "reverb", "lofi", "cover", "remix", "music", "song", "songs", "track", "playlist", "album"
+        }
+        items = []
+        hashtags = re.findall(r"#(\w+)", description)
+        for i, tag in enumerate(hashtags):
+            tag = tag.strip()
+            split_tag = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", tag)
+            
+            tag_clean = split_tag.lower()
+            for s in ["edit", "slowed", "reverb", "remix", "clip", "scene"]:
+                if tag_clean.endswith(s):
+                    tag_clean = tag_clean[:-len(s)].strip()
+                    split_tag = split_tag[:-len(s)].strip()
+
+            if len(tag_clean) < 3 or tag_clean in noise_words:
+                continue
+                
+            items.append({
+                "title": split_tag.title(),
+                "source": "description_hashtag",
+                "confidence": 0.9 - (i * 0.01)
+            })
+        return items
 
 
 # ── Music extractor ───────────────────────────────────────────────────────────

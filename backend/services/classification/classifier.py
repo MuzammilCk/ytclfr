@@ -39,7 +39,7 @@ from core.config import get_settings
 settings = get_settings()
 
 # ── Label definitions ─────────────────────────────────────────────────────────
-CATEGORIES = ["comedy", "listicle", "music", "educational", "news", "review", "gaming", "vlog"]
+CATEGORIES = ["comedy", "listicle", "music", "educational", "news", "review", "gaming", "vlog", "shopping"]
 N_CLASSES = len(CATEGORIES)
 
 
@@ -116,6 +116,17 @@ _HEURISTIC_PATTERNS: Dict[str, List[re.Pattern]] = {
         re.compile(r"\b\d+\s+best\b", re.I),
         re.compile(r"\branking\b", re.I),
         re.compile(r"\bevery\s+\w+\s+ranked\b", re.I),
+        # Rating-style: "10/10 movies", "5/5 games"
+        re.compile(r"\b\d+/\d+\s+(movies?|films?|shows?|games?|songs?|books?)\b", re.I),
+        # "best X of all time", "greatest X ever made"  
+        re.compile(r"\bbest\s+.{1,30}(of all time|ever|ever made)\b", re.I),
+        re.compile(r"\bgreatest\s+.{1,30}(of all time|ever)\b", re.I),
+        # "must watch", "must see"
+        re.compile(r"\bmust[\s-]?(watch|see|read)\b", re.I),
+        # "only perfect movies", "iconic films", "perfect films"
+        re.compile(r"\b(only|perfect|greatest|iconic)\s+.{1,20}(movies?|films?)\b", re.I),
+        # Movies/films with action word
+        re.compile(r"\b(movies?|films?)\s+(you|to|list|ranked|worth|that)\b", re.I),
     ],
     "music": [
         re.compile(r"\bplaylist\b", re.I),
@@ -162,6 +173,16 @@ _HEURISTIC_PATTERNS: Dict[str, List[re.Pattern]] = {
         re.compile(r"\bvlog\b", re.I),
         re.compile(r"\bday in (my|the) life\b", re.I),
         re.compile(r"\bwith me\b", re.I),
+    ],
+    "shopping": [
+        re.compile(r"\bshop\b", re.I),
+        re.compile(r"\bshopping\b", re.I),
+        re.compile(r"\bproduct\b", re.I),
+        re.compile(r"\bbuy\b", re.I),
+        re.compile(r"\bprice\b", re.I),
+        re.compile(r"\bhaul\b", re.I),
+        re.compile(r"\baffiliate\b", re.I),
+        re.compile(r"\blink in bio\b", re.I),
     ],
 }
 
@@ -315,22 +336,32 @@ class MultiModalClassifier:
         title: str,
         description: str,
         tags: List[str],
+        ocr_text: str = "",
     ) -> ClassificationOutput:
         """
         Run all three sub-classifiers and return a weighted ensemble prediction.
         Falls back to text-only if frame_paths is empty, or vision-only if transcript is empty.
-        Returns 'unknown' if max confidence < 0.4.
+        Returns 'unknown' if max confidence < 0.25.
         """
-        text_input = f"{title}. {transcript[:1000]}"  # title always first
+        text_input = f"{title}. {ocr_text}. {transcript[:1000]}"  # title always first
 
         # Guarded calls — each returns uniform prior when input is missing
         vision_probs = self.classify_frames(frame_paths)   # uniform if no frames
         text_probs = self.classify_text(text_input)         # uniform if no transcript
         heuristic_probs = self.classify_heuristic(title, description, tags)
+        
+        # If transcript is very thin, run heuristic over OCR as well and take element-wise max
+        if len(transcript.split()) < 20 and ocr_text:
+            ocr_heuristic_probs = self.classify_heuristic(title, description, [ocr_text])
+            heuristic_probs = np.maximum(heuristic_probs, ocr_heuristic_probs)
+            # Re-normalize
+            total = heuristic_probs.sum()
+            if total > 0:
+                heuristic_probs /= total
 
         # Adjust weights dynamically to avoid diluting the available signal
         w_vision = ENSEMBLE_WEIGHTS["vision"] if frame_paths else 0.0
-        w_text = ENSEMBLE_WEIGHTS["text"] if transcript and transcript.strip() else 0.0
+        w_text = ENSEMBLE_WEIGHTS["text"] if text_input.strip() else 0.0
         w_heuristic = ENSEMBLE_WEIGHTS["heuristic"]
         total_w = w_vision + w_text + w_heuristic or 1.0
 
@@ -345,8 +376,8 @@ class MultiModalClassifier:
 
         all_scores = {CATEGORIES[i]: float(combined[i]) for i in range(N_CLASSES)}
 
-        # Low-confidence fallback
-        if confidence < 0.4:
+        # Low-confidence fallback (0.25 to prevent shorts dropping to unknown)
+        if confidence < 0.25:
             return ClassificationOutput(
                 predicted_category="unknown",
                 confidence=confidence,
