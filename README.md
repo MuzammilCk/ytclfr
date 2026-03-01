@@ -1,6 +1,6 @@
 # 🎬 YouTube Intelligent Classifier
 
-> AI-powered video analysis and structured content extraction.  
+> AI-powered video analysis and structured content extraction.
 > Multi-modal classification combining computer vision, speech-to-text, and NLP.
 
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688?style=flat&logo=fastapi)](https://fastapi.tiangolo.com)
@@ -10,123 +10,162 @@
 
 ---
 
-## Architecture
+## 📑 Table of Contents
 
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│                          FRONTEND (React + Vite)                        │
-│   URL Input → Real-time Status Polling → Structured Result Display      │
-└──────────────────────────────┬─────────────────────────────────────────┘
-                               │ REST API
-┌──────────────────────────────▼─────────────────────────────────────────┐
-│                        API GATEWAY (FastAPI)                            │
-│   /api/v1/analyses  POST  →  Submit job                                 │
-│   /api/v1/analyses/{id}/status  GET  →  Poll progress                  │
-│   /api/v1/analyses/{id}/result  GET  →  Fetch full result               │
-│   /api/v1/analyses/export  POST  →  Download JSON/CSV/PDF               │
-└──────┬──────────────────────────────────────────────────────────────────┘
-       │ Celery Task
-┌──────▼────────────────────────────────────────────────────────────────┐
-│                      ANALYSIS PIPELINE (Celery Worker)                  │
-│                                                                         │
-│  yt-dlp Download  →  OpenCV Frames  →  Whisper Transcription            │
-│         │                  │                     │                      │
-│         └──────────────────▼─────────────────────┘                      │
-│                     EfficientNet + BERT Ensemble Classifier             │
-│                             │                                           │
-│             ┌───────────────┴──────────────┐                            │
-│             │                              │                            │
-│        TMDb Enrichment             Spotify Integration                  │
-│    (movies, streaming info)      (track search + playlist)              │
-└────────────────────────────────────────────────────────────────────────┘
-       │
-┌──────▼────────────────────────────────────────────────────────────────┐
-│                         DATA LAYER                                      │
-│   PostgreSQL (job metadata)  ·  MongoDB (full results)  ·  Redis (cache) │
-└────────────────────────────────────────────────────────────────────────┘
-```
-
-## Supported Video Categories
-
-| Category | Output |
-|---|---|
-| 🎭 Comedy/Entertainment | Timestamped punchlines, sentiment arc, full transcript |
-| 📋 Listicle/Ranking | Ranked items with TMDb ratings & streaming availability |
-| 🎵 Music Compilation | Track list with Spotify links, auto-generated playlist |
-| 🎓 Educational/Tutorial | Chapters, key concepts, step-by-step breakdown |
-| 📰 News/Documentary | Named entities, key points, summary |
-| ⭐ Product Review | Key claims, pros/cons, entity extraction |
-| 🎮 Gaming/Esports | Game titles, players, key moments |
-| 📹 Vlog/Lifestyle | Topics, locations, people mentioned |
+1. [Project Overview](#project-overview)
+2. [Key Features](#key-features)
+3. [System Architecture](#system-architecture)
+4. [Processing Workflow](#processing-workflow)
+5. [Technical Stack](#technical-stack)
+6. [Supported Video Categories](#supported-video-categories)
+7. [API Reference](#api-reference)
+8. [Project Structure](#project-structure)
+9. [Success Metrics](#success-metrics)
+10. [Local Development](#local-development)
 
 ---
 
-## Quickstart
+## 🚀 Project Overview
 
-### Prerequisites
+The **YouTube Intelligent Classifier** is an enterprise-grade, asynchronous video processing pipeline designed to extract structured, actionable insights from raw YouTube videos. It employs a multi-modal artificial intelligence approach combining visual feature extraction (EfficientNet), object detection (YOLOv8), Optical Character Recognition (pytesseract), automatic speech recognition (Whisper), and natural language processing (BERT, spaCy). 
 
-- Docker & Docker Compose  
-- Python 3.11+ (for local dev)  
-- Node.js 20+ (for frontend dev)  
-- 8GB+ RAM recommended (ML models)
+The platform is designed to categorize video content and extract highly specific metadata—such as timestamped product references for shopping, tracklists for music compilations, or structured chapters for educational content.
 
-### 1. Clone & configure
+---
 
-```bash
-git clone https://github.com/yourname/youtube-classifier.git
-cd youtube-classifier
+## ✨ Key Features
 
-# Copy and edit environment variables
-cp .env.example .env
-# Edit .env — at minimum set SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, TMDB_API_KEY
-```
+- **Multi-Modal Ensemble Classification**: Integrates visual frames and transcribed text to categorize videos securely and accurately.
+- **Asynchronous Processing**: Driven by a robust `Celery` task queue backed by `RabbitMQ` and `Redis`, enabling scalable, fault-tolerant background processing.
+- **Microservice-Oriented Architecture**: Clean separation between the high-throughput `FastAPI` API gateway, the React-based frontend, and the compute-heavy ML workers.
+- **Rich Data Extraction**: Extracts highly structured data specific to video themes (e.g., dynamically aggregating shopping links, scraping movie ratings, or generating Spotify playlists).
+- **Persistent Storage Strategy**: Metadata and job operational states are strictly enforced via `PostgreSQL`, while large, unbounded result payloads map safely into `MongoDB`.
 
-### 2. Start with Docker Compose
+---
 
-```bash
-cd docker
-docker compose up -d --build
-```
+## 🏛️ System Architecture
 
-Services will be available at:
-- **Frontend**: http://localhost:3000
-- **API**: http://localhost:8000
-- **API Docs**: http://localhost:8000/api/docs
-- **Flower** (Celery monitor): http://localhost:5555
-- **RabbitMQ UI**: http://localhost:15672
+Below is the high-level architecture diagram demonstrating the interaction of the user interfaces, api gateways, and background execution contexts.
 
-### 3. Local development (without Docker)
-
-```bash
-# Backend
-cd backend
-pip install -r requirements.txt
-python -m spacy download en_core_web_sm
-
-# Run DB migrations
-alembic upgrade head
-
-# Start API
-uvicorn main:app --reload --port 8000
-
-# In a separate terminal — start Celery worker
-celery -A services.pipeline.celery_app worker --loglevel=info
-
-# Frontend
-cd frontend
-npm install
-npm run dev
+```mermaid
+flowchart TD
+    %% User Interfaces
+    Client[Browser / Frontend Client]
+    
+    %% API Gateway Layer
+    subgraph API_Layer [API Gateway Layer]
+        FastAPI(FastAPI Server)
+        RateLimiter(Rate Limiter)
+        Auth(JWT Auth Middleware)
+    end
+    
+    %% State Management & Broker
+    subgraph Infrastructure [Data & Messaging Infrastructure]
+        Redis[(Redis Cache)]
+        RabbitMQ([RabbitMQ Broker])
+        Postgres[(PostgreSQL Metadata)]
+        MongoDB[(MongoDB Results)]
+    end
+    
+    %% Worker Nodes
+    subgraph Worker_Layer [Celery ML Worker Nodes]
+        CeleryTask(Pipeline Orchestrator)
+        YT_DLP[yt-dlp Video Downloader]
+        OpenCV[OpenCV Frame Extraction]
+        Whisper[ASR - faster-whisper]
+        Vision[Vision - YOLOv8 + EfficientNet + PyTesseract]
+        NLP[NLP - BERT + spaCy NER]
+        ExtApi[External Providers - TMDb / Spotify]
+    end
+    
+    %% Connections
+    Client -- "URL Input (POST)" --> FastAPI
+    Client -- "Status Polling (GET)" --> FastAPI
+    
+    FastAPI --> RateLimiter --> Auth
+    FastAPI -- "Queues Task" --> RabbitMQ
+    FastAPI -- "Reads/Writes State" --> Postgres
+    FastAPI -- "Fetches Results" --> MongoDB
+    FastAPI -- "Reads Cache" --> Redis
+    
+    RabbitMQ -- "Dispatches Job" --> CeleryTask
+    CeleryTask -- "Updates State" --> Postgres
+    CeleryTask -- "Writes Results" --> MongoDB
+    CeleryTask -- "Caches Info" --> Redis
+    
+    %% Pipeline Execution Sequence
+    CeleryTask --> YT_DLP
+    YT_DLP --> OpenCV
+    YT_DLP --> Whisper
+    OpenCV --> Vision
+    Whisper --> NLP
+    Vision & NLP --> ExtApi
 ```
 
 ---
 
-## API Reference
+## ⚙️ Processing Workflow
 
-### Submit a video for analysis
+The data processing pipeline is fully automated and functions across an 8-stage sequence:
 
+1. **Job Initialization & Deduplication**: Ensures duplicate videos are retrieved directly from the database rather than redundantly processed. Status sets to `queued`.
+2. **Media Ingestion**: utilizing `yt-dlp` to pull the optimal MP4 quality format into isolated temporary workspaces.
+3. **Frame Sampling**: `OpenCV` samples visual frames iteratively based on temporal cadence constraints.
+4. **Transcription**: Media audio is parsed through `faster-whisper` resolving timestamped segment-level textual transcriptions.
+5. **Multi-Modal Categorization**: 
+   - Transcribed text drives `DistilBERT` categorizations.
+   - Extracted frames operate through `EfficientNet`. 
+   - A weighted confidence ensemble (60% text, 40% visual) casts the deterministic outcome label.
+6. **Granular Extraction**: Distinct extractors activate based on categorization:
+   - For example, if classified as *shopping*, `YOLOv8` attempts object boundary detection, subsequently routed through `pytesseract` to scrape text. Entities are refined with `spaCy`.
+7. **External Enrichment**: Augments local findings with third-party datasets (e.g., retrieving `Spotify` track IDs, indexing `TMDb` movie ratings).
+8. **Final Persistence & Cleanup**: Assembles the monolithic JSON node, archives permanently inside `MongoDB`, toggles completion inside `PostgreSQL`, and purges local disk volume artifacts.
+
+---
+
+## 🛠️ Technical Stack
+
+### **Backend Core**
+- **Web Framework**: FastAPI, Uvicorn
+- **Orchestration**: Celery, RabbitMQ
+- **Data Layers**: PostgreSQL (Relational metadata), MongoDB (Document results), Redis (Broker/Caching)
+- **Database ORM**: SQLAlchemy (Async), Alembic (Migrations)
+
+### **Machine Learning & Extractors**
+- **Computer Vision**: OpenCV, Ultralytics YOLOv8, PyTesseract, Torchvision EfficientNet
+- **Speech & Language**: faster-whisper, Transformers (Hugging Face BERT), spaCy
+
+### **Frontend Interface**
+- **UI Framework**: React 18, Vite JS
+
+---
+
+## 📑 Supported Video Categories
+
+The pipeline natively discriminates against eight primary thematic clusters, delivering specialized payloads respectively.
+
+| Category | Extracted Output Capabilities |
+|----------|-------------------------------|
+| 🎭 **Comedy/Entertainment** | Timestamped punchlines, calculated sentiment arc, full segment transcript. |
+| 📋 **Listicle/Ranking** | Sequentially ranked items injected with TMDb ratings & platform availability. |
+| 🎵 **Music Compilation** | Track lists mapped securely with Spotify links alongside auto-playlist scripts. |
+| 🎓 **Educational/Tutorial** | Auto-generated chapters, explicit key concept modeling, step-by-step extraction. |
+| 📰 **News/Documentary** | Named entity recognition, explicit summarizations, and key point deductions. |
+| ⭐ **Product Review** | Granular entity mapping, pros/cons derivations, timestamped shopping affiliations (e.g., Amazon, eBay). |
+| 🎮 **Gaming/Esports** | Real-time game title recognitions, participant identification, chronological highlight markers. |
+| 📹 **Vlog/Lifestyle** | Explicit topic segmentation, locational profiling, and human entity mentions. |
+
+---
+
+## 🔌 API Reference
+
+Full interactive documentation is accessible at `http://localhost:8000/api/docs` upon spinning the cluster.
+
+### 1. Submit Video Pipeline
 ```http
 POST /api/v1/analyses/
 Content-Type: application/json
+Authorization: Bearer <JWT_TOKEN>
 
 {
   "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
@@ -134,180 +173,72 @@ Content-Type: application/json
 }
 ```
 
-**Response** (202 Accepted):
-```json
-{
-  "analysis_id": "550e8400-e29b-41d4-a716-446655440000",
-  "status": "queued",
-  "estimated_seconds": 60,
-  "message": "Analysis job accepted."
-}
-```
-
-### Poll status
-
+### 2. Poll Status Check
 ```http
 GET /api/v1/analyses/{analysis_id}/status
+Authorization: Bearer <JWT_TOKEN>
 ```
 
-### Get full result
-
+### 3. Retrieve Consolidated Results
 ```http
 GET /api/v1/analyses/{analysis_id}/result
+Authorization: Bearer <JWT_TOKEN>
 ```
 
-### Export result
-
-```http
-POST /api/v1/analyses/export
-Content-Type: application/json
-
-{
-  "analysis_id": "550e8400-e29b-41d4-a716-446655440000",
-  "format": "csv"
-}
-```
-
-Supported formats: `json`, `csv`, `pdf`
-
-### Batch processing
-
+### 4. Bulk Processing
 ```http
 POST /api/v1/analyses/batch
 Content-Type: application/json
 
 {
-  "urls": [
-    "https://youtube.com/watch?v=video1",
-    "https://youtube.com/watch?v=video2"
-  ]
+  "urls": ["https://youtube.com/watch?v=abc", "https://youtube.com/watch?v=xyz"]
 }
 ```
 
 ---
 
-## Running Tests
+## 📂 Project Structure
 
-```bash
-# Unit tests (no external dependencies)
-cd backend
-pytest tests/unit/ -v
-
-# Integration tests (requires running DB — use Docker)
-pytest tests/integration/ -v
-
-# Full test suite with coverage report
-pytest --cov=. --cov-report=html
-```
-
----
-
-## Getting API Keys
-
-| Service | Where to get | Cost |
-|---|---|---|
-| **TMDb** | https://developer.themoviedb.org | Free |
-| **Spotify** | https://developer.spotify.com/dashboard | Free |
-
----
-
-## Model Training
-
-The classification system ships with ImageNet/BERT pretrained weights as a zero-shot baseline. To fine-tune on your own labelled data:
-
-```bash
-# 1. Prepare dataset: CSV with columns [video_id, url, category]
-# 2. Run feature extraction
-python scripts/extract_features.py --dataset data/videos.csv
-
-# 3. Fine-tune image classifier
-python scripts/train_frame_classifier.py --epochs 20
-
-# 4. Fine-tune text classifier  
-python scripts/train_text_classifier.py --epochs 10
-
-# 5. Save weights (auto-loaded on next worker restart)
-# Weights saved to /tmp/ytclassifier/models/
-```
-
----
-
-## Deployment to Production (AWS)
-
-```bash
-# Build and push images
-docker build -t ytclassifier-api ./backend
-docker build -t ytclassifier-frontend ./frontend
-
-# Push to ECR, deploy via ECS or EKS
-# See docs/deployment.md for full Terraform/Kubernetes configs
-```
-
-Key production considerations:
-- Use GPU instance (g4dn.xlarge) for ML inference — 3–5× faster
-- Set `WHISPER_MODEL_SIZE=medium` for better accuracy
-- Use S3 for media storage instead of local `/tmp`
-- Enable CloudWatch metrics via the `/metrics` Prometheus endpoint
-
----
-
-## Project Structure
-
-```
+```text
 youtube-classifier/
-├── backend/
-│   ├── main.py                          # FastAPI app
-│   ├── core/config.py                   # Settings (pydantic-settings)
-│   ├── db/
-│   │   ├── database.py                  # Async DB clients
-│   │   └── models.py                    # SQLAlchemy ORM
-│   ├── models/schemas.py                # Pydantic request/response schemas
-│   ├── api/routes/analysis.py           # REST endpoints
-│   ├── services/
-│   │   ├── pipeline.py                  # Celery task orchestrator
-│   │   ├── video_processor/
-│   │   │   ├── downloader.py            # yt-dlp wrapper
-│   │   │   └── frame_extractor.py       # OpenCV frame sampling
-│   │   ├── audio_processor/
-│   │   │   └── transcriber.py           # Whisper STT
-│   │   ├── classification/
-│   │   │   └── classifier.py            # EfficientNet + BERT ensemble
-│   │   ├── extraction/
-│   │   │   └── extractors.py            # Category-specific extractors
-│   │   └── integration/
-│   │       ├── spotify_service.py       # Spotify Web API
-│   │       └── tmdb_service.py          # TMDb + JustWatch
-│   ├── alembic/                         # DB migrations
-│   └── requirements.txt
-├── frontend/
-│   ├── src/
-│   │   ├── App.jsx                      # Main React app
-│   │   └── main.jsx
-│   ├── index.html
-│   └── package.json
-├── docker/
-│   ├── docker-compose.yml
-│   └── nginx.conf
-├── tests/
-│   ├── unit/test_extraction.py
-│   └── integration/test_api.py
-└── .env.example
+├── backend/                       # Async FastAPI Python Infrastructure
+│   ├── api/                       # Router definitions & Auth mechanisms
+│   ├── core/                      # Environment and app-level configurations 
+│   ├── db/                        # Async DB connectors (PG, Mongo, Redis)
+│   ├── services/                  # Business Logic abstractions
+│   │   ├── audio_processor/     
+│   │   ├── classification/      
+│   │   ├── extraction/          
+│   │   ├── integration/         
+│   │   ├── video_processor/     
+│   │   └── vision/              
+│   ├── celery.log                 # Distributed task logs
+│   ├── main.py                    # Root FastAPI module
+│   └── requirements.txt           # Verified Python pip dependency matrix
+├── frontend/                      # React SPA Interface
+│   ├── src/                       
+│   └── vite.config.js             
+├── scripts/                       # ML artifact retrievers and train harnesses
+├── tests/                         # Pytest-native assertions (Unit/Integration)
+└── docker/                        # Production & Development container manifests
 ```
 
 ---
 
-## Success Metrics
+## 🎯 Success Metrics
 
-| Metric | Target | How measured |
+| Metric | Benchmark Target | Validation Protocol |
 |---|---|---|
-| Classification accuracy | ≥ 85% | Test set of 1000 labelled videos |
-| Processing time (10 min video) | ≤ 3 min | P95 latency from Celery task logs |
-| Transcription WER | ≤ 10% | Whisper on clean-audio benchmark |
-| System uptime | ≥ 99% | Prometheus + alertmanager |
-| Code coverage | ≥ 90% | pytest-cov |
+| **Classification Accuracy** | ≥ 85% | Cross-validated against 1000 labelled videos. |
+| **Pipeline Latency** | ≤ 3 minutes | P95 observed duration spanning a 10-minute 1080p source. |
+| **Transcription WER** | ≤ 10% | Assessed on Whisper medium via raw-clean benchmarking. |
+| **Cluster Uptime** | ≥ 99.9% | Prometheus probing & AlertManager instrumentation. |
+| **Test Coverage** | ≥ 90% | Assessed via standard `pytest-cov`. |
 
 ---
 
-*Final Year Project — Computer Science & Engineering*  
-*Expected completion: August 2026*
-# ytclfr
+## 💻 Local Development
+
+Please refer to the `SETUP.md` document residing in the root directory for a comprehensive, step-by-step local deployment guide tailored for natively provisioning elements such as Memurai, MongoDB, and PostgreSQL alongside the application servers.
+
+*Developed as a Final Year Project — Computer Science & Engineering (August 2026).*

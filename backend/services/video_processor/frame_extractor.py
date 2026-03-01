@@ -96,25 +96,25 @@ class FrameExtractor:
         saved_count = 0
         prev_gray: Optional[np.ndarray] = None
 
-        while cap.isOpened() and saved_count < MAX_FRAMES:
+        while cap.isOpened() and saved_count < MAX_FRAMES and frame_count < total_frame_count:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, frame_count)
             ret, frame = cap.read()
             if not ret:
                 break
 
-            if frame_count % frame_interval == 0:
-                # Scene-change filter: skip visually near-identical frames
-                if self._is_significant(frame, prev_gray):
-                    path = out_dir / f"frame_{saved_count:05d}.jpg"
-                    cv2.imwrite(
-                        str(path),
-                        frame,
-                        [cv2.IMWRITE_JPEG_QUALITY, 85],
-                    )
-                    frame_paths.append(str(path))
-                    prev_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                    saved_count += 1
+            # Scene-change filter: skip visually near-identical frames
+            if self._is_significant(frame, prev_gray):
+                path = out_dir / f"frame_{saved_count:05d}.jpg"
+                cv2.imwrite(
+                    str(path),
+                    frame,
+                    [cv2.IMWRITE_JPEG_QUALITY, 85],
+                )
+                frame_paths.append(str(path))
+                prev_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                saved_count += 1
 
-            frame_count += 1
+            frame_count += frame_interval
 
         cap.release()
 
