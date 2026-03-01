@@ -37,23 +37,25 @@ class RateLimiterMiddleware(BaseHTTPMiddleware):
             or (request.client.host if request.client else "unknown")
         )
 
-        redis_key = f"rate_limit:{client_ip}"
+        redis_key = f"rate_limit_sw:{client_ip}"
         window    = 60   # seconds
+        limit     = settings.RATE_LIMIT_PER_MINUTE  # e.g. 20
+        if not request.headers.get("Authorization"):
+            limit = 5   # anonymous tier
 
         try:
             redis = await get_redis()
-            current = await redis.incr(redis_key)
-            if current == 1:
-                await redis.expire(redis_key, window)
-
-            ttl = await redis.ttl(redis_key)
+            now = time.time()
+            
+            await redis.zadd(redis_key, {str(now): now})
+            await redis.zremrangebyscore(redis_key, 0, now - window)
+            count = await redis.zcard(redis_key)
+            await redis.expire(redis_key, window)
 
             # Set informational headers
-            request.state.rate_limit_remaining = max(
-                0, settings.RATE_LIMIT_PER_MINUTE - current
-            )
+            request.state.rate_limit_remaining = max(0, limit - count)
 
-            if current > settings.RATE_LIMIT_PER_MINUTE:
+            if count > limit:
                 return JSONResponse(
                     status_code=429,
                     content={

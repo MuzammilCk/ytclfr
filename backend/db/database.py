@@ -118,31 +118,31 @@ async def get_redis() -> aioredis.Redis:
 
 
 # ── Health checks ─────────────────────────────────────────────────────────────
-async def check_postgres() -> dict:
+async def check_postgres() -> tuple[bool, str | None]:
     try:
         async with engine.connect() as conn:
             await conn.execute(__import__("sqlalchemy").text("SELECT 1"))
-        return {"status": "ok"}
+        return True, None
     except Exception as e:
-        return {"status": "error", "detail": str(e)}
+        return False, str(e)
 
 
-async def check_mongo() -> dict:
+async def check_mongo() -> tuple[bool, str | None]:
     try:
         client = get_mongo_client()
         await client.admin.command("ping")
-        return {"status": "ok"}
+        return True, None
     except Exception as e:
-        return {"status": "error", "detail": str(e)}
+        return False, str(e)
 
 
-async def check_redis() -> dict:
+async def check_redis() -> tuple[bool, str | None]:
     try:
         r = await get_redis()
         await r.ping()
-        return {"status": "ok"}
+        return True, None
     except Exception as e:
-        return {"status": "error", "detail": str(e)}
+        return False, str(e)
 
 
 # ── Lifecycle helpers ─────────────────────────────────────────────────────────

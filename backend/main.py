@@ -48,6 +48,9 @@ def create_app() -> FastAPI:
     )
 
     # ── Middleware ─────────────────────────────────────────────────────────────
+    # Starlette applies middleware in REVERSE registration order.
+    # Add CORSMiddleware LAST so it wraps everything and always fires.
+    app.add_middleware(GZipMiddleware, minimum_size=1024)
     app.add_middleware(RateLimiterMiddleware)
     app.add_middleware(
         CORSMiddleware,
@@ -60,7 +63,6 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    app.add_middleware(GZipMiddleware, minimum_size=1024)
 
     # ── Prometheus metrics ─────────────────────────────────────────────────────
     Instrumentator().instrument(app).expose(app, endpoint="/metrics")
@@ -100,9 +102,21 @@ def create_app() -> FastAPI:
     @app.exception_handler(Exception)
     async def global_exception_handler(request: Request, exc: Exception):
         logger.exception(f"Unhandled error on {request.url}: {exc}")
+        origin = request.headers.get("origin", "")
+        headers = {}
+        # Mirror CORS headers manually so the browser can read the error body
+        allowed = [
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "http://localhost:5173",
+        ]
+        if origin in allowed:
+            headers["Access-Control-Allow-Origin"] = origin
+            headers["Access-Control-Allow-Credentials"] = "true"
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"detail": "An internal server error occurred"},
+            headers=headers,
         )
 
     return app

@@ -32,16 +32,18 @@ from models.schemas import (
     SpotifyPlaylistResponse,
 )
 from services.video_processor.downloader import extract_video_id
-from services.pipeline import analyse_video as celery_analyse
-from services.integration.spotify_service import SpotifyService
+# NOTE: services.pipeline is imported lazily inside submit_analysis to avoid
+# loading heavy ML libraries (torch, ultralytics, faster-whisper) at module
+# import time, which would crash the entire FastAPI app if any are missing.
 
 settings = get_settings()
 router = APIRouter(prefix="/api/v1/analyses", tags=["Analysis"])
 
 
 @lru_cache(maxsize=1)
-def _get_spotify_service() -> SpotifyService:
-    """Lazy singleton — only instantiated on first call, not at import time."""
+def _get_spotify_service():
+    """Lazy singleton — imported and instantiated only on first call."""
+    from services.integration.spotify_service import SpotifyService
     return SpotifyService()
 
 
@@ -102,7 +104,9 @@ async def submit_analysis(
     await db.flush()
     analysis_id = str(analysis.id)
 
-    # ── Dispatch Celery task ──────────────────────────────────────────────────
+    # ── Dispatch Celery task ────────────────────────────────────────────────────
+    # Lazy import: avoid loading torch/ultralytics/faster-whisper at startup
+    from services.pipeline import analyse_video as celery_analyse  # noqa: PLC0415
     task = celery_analyse.apply_async(
         kwargs={
             "analysis_id": analysis_id,
@@ -132,12 +136,9 @@ async def submit_batch(
     db: AsyncSession = Depends(get_db_session),
     redis=Depends(get_redis),
 ):
-    """Submit up to 50 YouTube URLs for parallel analysis."""
-    if len(body.urls) > 50:
-        raise HTTPException(
-            status_code=422,
-            detail="Batch size cannot exceed 50 URLs",
-        )
+    """
+    Submit up to 10 videos at once. Returns a list of job statuses.
+    """
     results = []
     for url in body.urls:
         try:

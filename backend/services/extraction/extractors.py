@@ -502,7 +502,6 @@ _EXTRACTOR_MAP: Dict[str, BaseExtractor] = {
     "listicle": ListicleExtractor(),
     "music": MusicExtractor(),
     "educational": EducationalExtractor(),
-    "shopping": ShoppingExtractor(),
     "news": GenericExtractor(),
     "review": GenericExtractor(),
     "gaming": GenericExtractor(),
@@ -512,4 +511,6 @@ _EXTRACTOR_MAP: Dict[str, BaseExtractor] = {
 
 
 def get_extractor(category: str) -> BaseExtractor:
+    if category == "shopping":
+        return ShoppingExtractor()
     return _EXTRACTOR_MAP.get(category, _EXTRACTOR_MAP["unknown"])

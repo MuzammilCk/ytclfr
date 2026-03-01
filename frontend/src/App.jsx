@@ -305,19 +305,23 @@ function Spinner({ size = 24, color = "var(--accent)" }) {
 function HeroInput({ onSubmit, loading }) {
   const [url, setUrl] = useState("");
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const inputRef = useRef(null);
 
   const handleSubmit = async () => {
     setError("");
     if (!url.trim()) { setError("Enter a YouTube URL"); return; }
-    if (!url.includes("youtube.com") && !url.includes("youtu.be")) {
+    if (!url.includes("youtube.com") && !url.includes("youtu.be") && !url.includes("youtube.com/shorts/")) {
       setError("Must be a valid YouTube URL");
       return;
     }
+    setSubmitting(true);
     try {
       await onSubmit(url.trim());
     } catch (e) {
       setError(e.message);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -373,9 +377,9 @@ function HeroInput({ onSubmit, loading }) {
               ref={inputRef}
               value={url}
               onChange={e => setUrl(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && !loading && handleSubmit()}
+              onKeyDown={e => e.key === "Enter" && !(loading || submitting) && handleSubmit()}
               placeholder="https://youtube.com/watch?v=..."
-              disabled={loading}
+              disabled={loading || submitting}
               style={{
                 width: "100%", padding: "16px 16px 16px 48px",
                 background: "var(--surface2)",
@@ -391,8 +395,8 @@ function HeroInput({ onSubmit, loading }) {
               onBlur={e => e.target.style.borderColor = "var(--border)"}
             />
           </div>
-          <GlowButton onClick={handleSubmit} disabled={loading}>
-            {loading ? <Spinner size={18} color="#08080f" /> : "Analyse"}
+          <GlowButton onClick={handleSubmit} disabled={loading || submitting}>
+            {loading || submitting ? <Spinner size={18} color="#08080f" /> : "Analyse"}
           </GlowButton>
         </div>
         {error && (
@@ -1212,9 +1216,9 @@ function AnalyticsDashboard() {
   useEffect(() => {
     Promise.all([
       apiGet("/api/v1/analytics/summary"),
-      apiGet("/api/v1/analytics/recent"),
+      apiGet("/api/v1/analyses/?page_size=10"),
     ])
-      .then(([s, r]) => { setSummary(s); setRecent(r.items || r || []); })
+      .then(([s, r]) => { setSummary(s); setRecent(r.items || []); })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
@@ -1231,9 +1235,8 @@ function AnalyticsDashboard() {
     </Card>
   );
 
-  const cats = summary?.by_category || {};
+  const cats = summary?.category_breakdown || {};
   const maxCat = Math.max(1, ...Object.values(cats));
-  const procTimes = summary?.processing_times || {};
 
   return (
     <div style={{ animation: "fadeUp 0.5s ease" }}>
@@ -1243,9 +1246,9 @@ function AnalyticsDashboard() {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 16, marginBottom: 28 }}>
         {[
           { label: "Total Analyses", value: summary?.total_analyses ?? "—", color: "var(--accent)" },
-          { label: "Completed", value: summary?.completed ?? "—", color: "var(--success)" },
-          { label: "Failed", value: summary?.failed ?? "—", color: "var(--danger)" },
-          { label: "Avg Time (s)", value: procTimes.avg != null ? procTimes.avg.toFixed(1) : "—", color: "var(--accent3)" },
+          { label: "Completed", value: summary?.completed_analyses ?? "—", color: "var(--success)" },
+          { label: "Failed", value: summary?.failed_analyses ?? "—", color: "var(--danger)" },
+          { label: "Avg Time (s)", value: summary?.avg_processing_time_secs != null ? summary.avg_processing_time_secs.toFixed(1) : "—", color: "var(--accent3)" },
         ].map((kpi, i) => (
           <Card key={i} glow style={{ textAlign: "center" }}>
             <div style={{ fontSize: 32, fontWeight: 800, color: kpi.color, fontFamily: "'Space Mono', monospace" }}>

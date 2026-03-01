@@ -257,12 +257,13 @@ class VideoDownloader:
 
     async def cleanup(self, video_id: str):
         """Remove downloaded media files for a given video ID."""
-        for pattern in [
-            f"{video_id}.mp4",
-            f"{video_id}.wav",
-            f"{video_id}_thumb.*",
-        ]:
-            for f in list(self.download_dir.glob(pattern)) + list(self.audio_dir.glob(pattern)):
+        patterns = [
+            (self.download_dir, f"{video_id}.mp4"),
+            (self.audio_dir, f"{video_id}.wav"),
+            (self.download_dir, f"{video_id}_thumb.*"),
+        ]
+        for d, pattern in patterns:
+            for f in d.glob(pattern):
                 try:
                     f.unlink()
                     logger.debug(f"Cleaned up {f}")

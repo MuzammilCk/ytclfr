@@ -17,8 +17,12 @@ comedy | listicle | music | educational | news | review | gaming | vlog
 """
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass, field
+
+from core.config import get_settings as _cfg
+MAX_FRAMES = int(os.getenv("MAX_FRAMES", str(_cfg().MAX_FRAMES)))
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 

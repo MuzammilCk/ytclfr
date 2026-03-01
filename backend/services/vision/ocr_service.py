@@ -10,6 +10,7 @@ Useful for:
 from __future__ import annotations
 
 import asyncio
+import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -57,8 +58,8 @@ class OCRService:
     _BLUR_THRESHOLD = float(os.getenv("OCR_TEXT_THRESHOLD", "100.0"))
 
     def __init__(self, lang: Optional[str] = None):
-        _s = get_settings() if 'get_settings' in dir() else None
-        self.lang = lang or (os.getenv("OCR_LANG") or (_s.OCR_LANG if _s else "eng"))
+        _s = _get_settings()
+        self.lang = lang or os.getenv("OCR_LANG") or _s.OCR_LANG or "eng"
         self.tesseract_config = "--oem 3 --psm 6"   # OEM3=LSTM, PSM6=assume uniform block of text
 
     # ── Public API ─────────────────────────────────────────────────────────────
@@ -82,7 +83,7 @@ class OCRService:
 
         results = await asyncio.gather(
             *[
-                asyncio.get_event_loop().run_in_executor(
+                asyncio.get_running_loop().run_in_executor(
                     None, self._ocr_frame, path, i / fps
                 )
                 for i, path in enumerate(sampled)

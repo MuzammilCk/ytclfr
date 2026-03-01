@@ -202,7 +202,6 @@ def main():
     val_ds.dataset.transform = FrameDataset.EVAL_TRANSFORM
 
     # Weighted sampler to handle class imbalance
-    sample_weights = [dataset.class_weights[dataset.samples[i]["label"] if isinstance(dataset.samples[i], dict) else 0] for i in range(len(dataset))]
     sampler = torch.utils.data.WeightedRandomSampler(
         weights=[dataset.class_weights[dataset.label_to_idx.get(dataset.samples[i]["label"], 0)]
                  for i in range(len(dataset))],
@@ -212,6 +211,7 @@ def main():
 
     train_loader = DataLoader(
         train_ds, batch_size=args.batch,
+        sampler=sampler,
         num_workers=args.workers, pin_memory=True,
     )
     val_loader = DataLoader(

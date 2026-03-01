@@ -141,40 +141,43 @@ class SpotifyService:
             logger.debug("Spotify client not available; skipping track search")
             return None
 
-        # Strategy: try narrow query first, then broad
+        auth_retried = False
         for query in [
             f'track:"{title}" artist:"{artist}"',
             f"{title} {artist}",
         ]:
-            try:
-                results = self._client.search(q=query, type="track", limit=1, market="US")
-                items = results.get("tracks", {}).get("items", [])
-                if items:
-                    t = items[0]
-                    return TrackInfo(
-                        spotify_id=t["id"],
-                        uri=t["uri"],
-                        name=t["name"],
-                        artist=t["artists"][0]["name"],
-                        album=t["album"]["name"],
-                        release_year=(t["album"].get("release_date") or "")[:4] or None,
-                        duration_ms=t["duration_ms"],
-                        popularity=t["popularity"],
-                        preview_url=t.get("preview_url"),
-                        spotify_url=t["external_urls"]["spotify"],
-                    )
-            except SpotifyException as exc:
-                if exc.http_status == 401:
-                    # Access token expired — rebuild the client with fresh credentials
-                    logger.warning("Spotify 401 — refreshing client credentials")
-                    self._client = _build_client_credentials_client()
-                    continue   # retry this query with fresh token
-                logger.warning(f"Spotify search error for '{title}' / '{artist}': {exc}")
-                continue
-            except Exception as exc:
-                logger.warning(f"Spotify search error for '{title}' / '{artist}': {exc}")
-                continue
-
+            while True:
+                try:
+                    results = self._client.search(q=query, type="track", limit=1, market="US")
+                    items = results.get("tracks", {}).get("items", [])
+                    if items:
+                        t = items[0]
+                        return TrackInfo(
+                            spotify_id=t["id"],
+                            uri=t["uri"],
+                            name=t["name"],
+                            artist=t["artists"][0]["name"],
+                            album=t["album"]["name"],
+                            release_year=(t["album"].get("release_date") or "")[:4] or None,
+                            duration_ms=t["duration_ms"],
+                            popularity=t["popularity"],
+                            preview_url=t.get("preview_url"),
+                            spotify_url=t["external_urls"]["spotify"],
+                        )
+                    break # success but no items, break out of while
+                except SpotifyException as exc:
+                    if exc.http_status == 401 and not auth_retried:
+                        # Access token expired — rebuild the client with fresh credentials
+                        logger.warning("Spotify 401 — refreshing client credentials")
+                        self._client = _build_client_credentials_client()
+                        auth_retried = True
+                        continue   # retry this exact query
+                    logger.warning(f"Spotify search error for '{title}' / '{artist}': {exc}")
+                    break
+                except Exception as exc:
+                    logger.warning(f"Spotify search error for '{title}' / '{artist}': {exc}")
+                    break
+        
         return None
 
     def _create_playlist_sync(

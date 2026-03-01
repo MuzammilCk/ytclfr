@@ -64,6 +64,7 @@ _classifier: Optional[MultiModalClassifier] = None
 _tmdb: Optional[TMDbService] = None
 _spotify: Optional[SpotifyService] = None
 _yolo: Optional[YOLODetector] = None
+_sync_mongo_client = None
 
 
 @worker_process_init.connect
@@ -348,15 +349,17 @@ def _persist_to_mongo(analysis_id: str, result: Dict[str, Any]):
     Write the full analysis result to MongoDB and store the ObjectId back in Postgres.
     Uses get_sync_db() for the PostgreSQL update instead of raw psycopg2.
     """
+    global _sync_mongo_client
     from pymongo import MongoClient
     from sqlalchemy import text
     try:
-        client = MongoClient(settings.mongodb_url, serverSelectionTimeoutMS=5000)
-        db = client[settings.MONGO_DB]
+        if _sync_mongo_client is None:
+            _sync_mongo_client = MongoClient(settings.mongodb_url, serverSelectionTimeoutMS=5000)
+            
+        db = _sync_mongo_client[settings.MONGO_DB]
         doc = {"_analysis_id": analysis_id, **result}
         insert_result = db["analysis_results"].insert_one(doc)
         mongo_id = str(insert_result.inserted_id)
-        client.close()
 
         with get_sync_db() as session:
             session.execute(

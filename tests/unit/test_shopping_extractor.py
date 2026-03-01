@@ -42,7 +42,7 @@ class TestShoppingExtractor:
         """Result dict must have type == 'shopping'."""
         extractor = _make_extractor()
         with patch("services.extraction.extractors._get_nlp") as mock_nlp:
-            mock_nlp.return_value = MagicMock(ents=[], noun_chunks=[])
+            mock_nlp.return_value.return_value = MagicMock(ents=[], noun_chunks=[])
             result = extractor.extract("buy this laptop today", [], {}, [])
         assert result["type"] == "shopping"
 
@@ -52,7 +52,7 @@ class TestShoppingExtractor:
         extractor = _make_extractor([det])
 
         with patch("services.extraction.extractors._get_nlp") as mock_nlp:
-            mock_nlp.return_value = MagicMock(ents=[], noun_chunks=[])
+            mock_nlp.return_value.return_value = MagicMock(ents=[], noun_chunks=[])
             result = extractor.extract("", [], {}, ["/tmp/frame_001.jpg"])
 
         products = result["products"]
@@ -67,7 +67,7 @@ class TestShoppingExtractor:
         extractor = _make_extractor([person_det])
 
         with patch("services.extraction.extractors._get_nlp") as mock_nlp:
-            mock_nlp.return_value = MagicMock(ents=[], noun_chunks=[])
+            mock_nlp.return_value.return_value = MagicMock(ents=[], noun_chunks=[])
             result = extractor.extract("", [], {}, [])
 
         assert result["products"] == []
@@ -82,7 +82,7 @@ class TestShoppingExtractor:
         extractor = _make_extractor(dets)
 
         with patch("services.extraction.extractors._get_nlp") as mock_nlp:
-            mock_nlp.return_value = MagicMock(ents=[], noun_chunks=[])
+            mock_nlp.return_value.return_value = MagicMock(ents=[], noun_chunks=[])
             result = extractor.extract("", [], {}, [])
 
         products = result["products"]
@@ -97,7 +97,7 @@ class TestShoppingExtractor:
         extractor = _make_extractor([det])
 
         with patch("services.extraction.extractors._get_nlp") as mock_nlp:
-            mock_nlp.return_value = MagicMock(ents=[], noun_chunks=[])
+            mock_nlp.return_value.return_value = MagicMock(ents=[], noun_chunks=[])
             result = extractor.extract("", [], {}, [])
 
         url = result["products"][0]["search_url"]
@@ -110,7 +110,7 @@ class TestShoppingExtractor:
         extractor = _make_extractor(dets)
 
         with patch("services.extraction.extractors._get_nlp") as mock_nlp:
-            mock_nlp.return_value = MagicMock(ents=[], noun_chunks=[])
+            mock_nlp.return_value.return_value = MagicMock(ents=[], noun_chunks=[])
             result = extractor.extract("", [], {}, [])
 
         assert result["total_products"] == len(result["products"])
@@ -121,7 +121,7 @@ class TestShoppingExtractor:
         extractor = _make_extractor([det])
 
         with patch("services.extraction.extractors._get_nlp") as mock_nlp:
-            mock_nlp.return_value = MagicMock(ents=[], noun_chunks=[])
+            mock_nlp.return_value.return_value = MagicMock(ents=[], noun_chunks=[])
             result = extractor.extract("", [], {}, [])
 
         assert result["products"][0]["category"] == "Electronics"
@@ -131,7 +131,7 @@ class TestShoppingExtractor:
         extractor = _make_extractor([])
 
         with patch("services.extraction.extractors._get_nlp") as mock_nlp:
-            mock_nlp.return_value = MagicMock(ents=[], noun_chunks=[])
+            mock_nlp.return_value.return_value = MagicMock(ents=[], noun_chunks=[])
             result = extractor.extract("", [], {}, [])
 
         assert result["products"] == []

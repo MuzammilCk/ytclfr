@@ -75,7 +75,7 @@ class BatchAnalysisRequest(BaseModel):
         validated = []
         for u in urls:
             u = u.strip()
-            if not ("youtube.com/watch" in u or "youtu.be/" in u):
+            if not ("youtube.com/watch" in u or "youtu.be/" in u or "youtube.com/shorts/" in u):
                 raise ValueError(f"Invalid YouTube URL: {u}")
             validated.append(u)
         return validated

@@ -119,17 +119,50 @@ async def register(body: UserRegisterRequest, db: AsyncSession = Depends(get_db_
     return user
 
 
+MAX_ATTEMPTS = 5
+LOCKOUT_SECS = 900  # 15 min
+
+async def check_login_rate_limit(identifier: str):
+    from db.database import get_redis
+    r = await get_redis()
+    attempts = await r.get(f"login_attempts:{identifier}")
+    if attempts and int(attempts) >= MAX_ATTEMPTS:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many attempts",
+            headers={"Retry-After": str(LOCKOUT_SECS)}
+        )
+
+async def record_failed_login(identifier: str):
+    from db.database import get_redis
+    r = await get_redis()
+    key = f"login_attempts:{identifier}"
+    await r.incr(key)
+    await r.expire(key, LOCKOUT_SECS)
+
+async def clear_login_attempts(identifier: str):
+    from db.database import get_redis
+    r = await get_redis()
+    await r.delete(f"login_attempts:{identifier}")
+
+
 @router.post("/login", response_model=TokenResponse)
 async def login(body: UserLoginRequest, db: AsyncSession = Depends(get_db_session)):
     """Authenticate and return JWT tokens."""
+    await check_login_rate_limit(body.email)
+    
     result = await db.execute(select(User).where(User.email == body.email))
     user = result.scalar_one_or_none()
 
     if not user or not _verify_password(body.password, user.hashed_password):
+        await record_failed_login(body.email)
         raise HTTPException(status_code=401, detail="Incorrect email or password")
 
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Account is deactivated")
+
+    # Clear attempts on success
+    await clear_login_attempts(body.email)
 
     user_id = str(user.id)
     return TokenResponse(
