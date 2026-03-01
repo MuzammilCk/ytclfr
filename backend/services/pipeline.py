@@ -98,6 +98,20 @@ def load_models_on_startup(**kwargs):
     except Exception as exc:
         logger.error(f"Failed to load YOLO: {exc}")
 
+    # Classifier models (Frame & Text)
+    try:
+        from services.classification.classifier import MultiModalClassifier
+        classifier_svc = MultiModalClassifier()
+        # This will trigger the fallback loading logic inside those methods,
+        # load the weights from disk, and return the initialized eval() model.
+        _models["efficientnet"] = classifier_svc._get_frame_model()
+        logger.info("FrameClassifier (EfficientNet) loaded into cache")
+        
+        _models["bert"] = classifier_svc._get_text_model()
+        logger.info("TextClassifier (BERT) loaded into cache")
+    except Exception as exc:
+        logger.error(f"Failed to load classification models: {exc}")
+
     logger.info("Worker process init: model loading complete.")
 
 
