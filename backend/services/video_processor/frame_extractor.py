@@ -167,7 +167,7 @@ class FrameExtractor:
         cap = cv2.VideoCapture(str(video_path))
         total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         n_frames = min(self.MIN_FRAMES, total)
-        step = max(1, total // n_frames)
+        step = max(1, total // n_frames) if n_frames > 0 else 1
 
         paths: List[str] = []
         idx = 0

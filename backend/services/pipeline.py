@@ -529,7 +529,7 @@ def _persist_to_mongo(analysis_id: str, result: Dict[str, Any]) -> bool:
                 session.execute(
                     text("""
                         UPDATE videos v 
-                        SET category=:cat, confidence=:conf 
+                        SET category=:cat, classification_confidence=:conf 
                         FROM analyses a 
                         WHERE a.video_id = v.id AND a.id = :id
                     """),
