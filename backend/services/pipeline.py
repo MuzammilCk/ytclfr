@@ -330,7 +330,14 @@ def analyse_video(
         }
 
         # ── Step 8: Persist to MongoDB ────────────────────────────────────────
-        _persist_to_mongo(analysis_id, result)
+        mongo_ok = _persist_to_mongo(analysis_id, result)
+        if not mongo_ok:
+            _update_status(
+                analysis_id, "failed",
+                error="Analysis completed but result could not be saved to MongoDB. "
+                      "Check that MongoDB is running."
+            )
+            return {**result, "mongo_save_failed": True}
 
         _update_status(analysis_id, "complete")
         logger.info(f"[{analysis_id}] Analysis complete in {processing_secs}s")
@@ -351,7 +358,7 @@ def analyse_video(
         loop.close()
 
 
-def _persist_to_mongo(analysis_id: str, result: Dict[str, Any]):
+def _persist_to_mongo(analysis_id: str, result: Dict[str, Any]) -> bool:
     """
     Write the full analysis result to MongoDB and store the ObjectId back in Postgres.
     Uses get_sync_db() for the PostgreSQL update instead of raw psycopg2.
@@ -373,5 +380,7 @@ def _persist_to_mongo(analysis_id: str, result: Dict[str, Any]):
                 text("UPDATE analyses SET mongo_result_id=:mid, completed_at=NOW() WHERE id=:id"),
                 {"mid": mongo_id, "id": analysis_id},
             )
+        return True
     except Exception as exc:
         logger.error(f"Failed to persist result to MongoDB: {exc}")
+        return False

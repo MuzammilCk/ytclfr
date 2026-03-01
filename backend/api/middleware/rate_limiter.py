@@ -17,7 +17,19 @@ settings = get_settings()
 
 # Paths that are exempt from rate limiting
 _EXEMPT_PATHS = {"/health", "/ready", "/metrics", "/api/docs", "/api/redoc", "/api/openapi.json"}
+_EXEMPT_GET_PREFIXES = (
+    "/api/v1/analyses/",   # status, result, and list endpoints
+)
 
+def _is_exempt(request: Request) -> bool:
+    path = request.url.path
+    if path in _EXEMPT_PATHS:
+        return True
+    if request.method == "GET":
+        for prefix in _EXEMPT_GET_PREFIXES:
+            if path.startswith(prefix):
+                return True
+    return False
 
 class RateLimiterMiddleware(BaseHTTPMiddleware):
     """
@@ -28,7 +40,7 @@ class RateLimiterMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next) -> Response:
         # Skip exempt paths
-        if request.url.path in _EXEMPT_PATHS:
+        if _is_exempt(request):
             return await call_next(request)
 
         # Identify client by X-Forwarded-For (behind nginx) or direct IP
@@ -39,9 +51,12 @@ class RateLimiterMiddleware(BaseHTTPMiddleware):
 
         redis_key = f"rate_limit_sw:{client_ip}"
         window    = 60   # seconds
-        limit     = settings.RATE_LIMIT_PER_MINUTE  # e.g. 20
+        limit     = settings.RATE_LIMIT_PER_MINUTE  # e.g. 300
         if not request.headers.get("Authorization"):
-            limit = 5   # anonymous tier
+            if request.method == "GET":
+                limit = 60
+            else:
+                limit = 10   # anonymous tier
 
         try:
             redis = await get_redis()

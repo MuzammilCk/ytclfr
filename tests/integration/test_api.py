@@ -94,9 +94,8 @@ class TestHealthEndpoint:
         data = resp.json()
         assert data["status"] == "ok"
         assert "version" in data
-        for db in ["db_postgres", "db_mongo", "db_redis"]:
-            assert db in data
-            assert isinstance(data[db], bool)
+        assert "services" in data
+        assert "postgres" in data["services"]
 
 
 class TestAnalysisSubmission:

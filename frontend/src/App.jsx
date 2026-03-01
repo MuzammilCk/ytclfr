@@ -1582,7 +1582,7 @@ export default function App() {
       } catch (e) {
         console.warn("Poll error:", e);
       }
-    }, 3000);
+    }, 5000);
   }, []);
 
   const handleSubmit = async (url) => {

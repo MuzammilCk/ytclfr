@@ -141,7 +141,7 @@ class YOLODetector:
         if not frame_paths:
             return []
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         return await loop.run_in_executor(
             _executor,
             _run_detection,
