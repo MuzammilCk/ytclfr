@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = False
     ENVIRONMENT: str = "production"          # development | staging | production
+    PUBLIC_BASE_URL: str = "http://localhost:8000"
     SECRET_KEY: str = "change-me-in-production-use-openssl-rand-hex-32"
     SENTRY_DSN: Optional[str] = None
 
@@ -70,6 +71,11 @@ class Settings(BaseSettings):
     EXPORTS_DIR: str = "/tmp/ytclassifier/exports"
     MAX_VIDEO_DURATION_SECS: int = 3600      # 1 hour hard cap
     CLEANUP_AFTER_SECS: int = 3600           # delete raw files after 1 h
+    KEEP_FRAMES_AFTER_ANALYSIS: bool = True  # don't delete frame directories after pipeline completion
+    TRAINING_DATA_DIR: str = "training_data"  # relative to backend/, where training sample JSONs are stored
+
+    # ── Google Books (Optional) ───────────────────────────────────────────────
+    GOOGLE_BOOKS_API_KEY: Optional[str] = None  # Enables book-list enrichment
 
     # ── File size limit ───────────────────────────────────────────────────────
     MAX_FILE_SIZE_MB: int = 500              # reject downloads larger than this

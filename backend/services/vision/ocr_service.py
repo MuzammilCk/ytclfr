@@ -35,13 +35,27 @@ except ImportError:
     logger.warning("pytesseract not installed; OCR will be disabled")
 
 
+from dataclasses import dataclass, field
+
 @dataclass
-class OCRResult:
+class FrameOCRData:
+    frame_index: int
     frame_path: str
-    timestamp_secs: Optional[float]
+    timestamp_secs: float
     raw_text: str
     cleaned_text: str
     confidence: float   # 0-100, mean Tesseract word confidence
+    has_content: bool   # True if cleaned_text has >= 3 meaningful words
+    detected_items: List[dict] = field(default_factory=list)
+
+
+@dataclass
+class VideoOCRResult:
+    frames: List[FrameOCRData]
+    aggregated_text: str
+    content_frames: List[FrameOCRData]
+    total_frames_processed: int
+    frames_with_text: int
 
 
 class OCRService:
@@ -57,9 +71,22 @@ class OCRService:
     # Minimum Laplacian variance — frames below this are considered too blurry for OCR
     _BLUR_THRESHOLD = float(os.getenv("OCR_TEXT_THRESHOLD", "100.0"))
 
+    LANGUAGE_TO_TESSERACT = {
+        "ko": "kor+eng",
+        "ja": "jpn+eng",
+        "zh": "chi_sim+chi_tra+eng",
+        "ar": "ara+eng",
+        "hi": "hin+eng",
+        "th": "tha+eng",
+        "es": "spa+eng",
+        "fr": "fra+eng",
+        "de": "deu+eng",
+        "ru": "rus+eng",
+    }
+
     def __init__(self, lang: Optional[str] = None):
         _s = _get_settings()
-        self.lang = lang or os.getenv("OCR_LANG") or _s.OCR_LANG or "eng"
+        self.default_lang = lang or os.getenv("OCR_LANG") or _s.OCR_LANG or "eng"
         self.tesseract_config = "--oem 3 --psm 6"   # OEM3=LSTM, PSM6=assume uniform block of text
 
     # ── Public API ─────────────────────────────────────────────────────────────
@@ -67,33 +94,61 @@ class OCRService:
     async def extract_from_frames(
         self,
         frame_paths: List[str],
-        max_frames: int = 20,
+        max_frames: Optional[int] = None,
         fps: float = 1.0,
-    ) -> List[OCRResult]:
+        audio_language: Optional[str] = None,
+    ) -> VideoOCRResult:
         """
-        Run OCR on a sample of frames. Returns one result per frame.
-        Offloads CPU-heavy OCR to a thread pool.
+        Run OCR on extracted frames. Returns one result per frame.
+        Offloads CPU-heavy OCR to a thread pool with a semaphore limit.
         """
         if not _TESSERACT_AVAILABLE:
-            return []
+            return VideoOCRResult(
+                frames=[],
+                aggregated_text="",
+                content_frames=[],
+                total_frames_processed=0,
+                frames_with_text=0
+            )
 
-        # Sample evenly across the frame list
-        step = max(1, len(frame_paths) // max_frames)
-        sampled = frame_paths[::step][:max_frames]
+        # Sample evenly if max_frames is provided (e.g. for lightweight pre-classification)
+        if max_frames and len(frame_paths) > max_frames:
+            step = max(1, len(frame_paths) // max_frames)
+            sampled = frame_paths[::step][:max_frames]
+        else:
+            sampled = frame_paths
+
+        loop = asyncio.get_running_loop()
+        sem = asyncio.Semaphore(8)
+
+        async def _process_frame(path: str, ts: float) -> Optional[FrameOCRData]:
+            async with sem:
+                return await loop.run_in_executor(None, self._ocr_frame, path, ts, audio_language)
 
         results = await asyncio.gather(
-            *[
-                asyncio.get_running_loop().run_in_executor(
-                    None, self._ocr_frame, path, i / fps
-                )
-                for i, path in enumerate(sampled)
-            ],
+            *[_process_frame(path, i / fps) for i, path in enumerate(sampled)],
             return_exceptions=True,
         )
 
-        return [r for r in results if isinstance(r, OCRResult) and r.cleaned_text.strip()]
+        valid_results = []
+        for r in results:
+            if isinstance(r, FrameOCRData):
+                valid_results.append(r)
+            elif isinstance(r, Exception):
+                logger.error(f"OCR thread failed: {r}")
 
-    def aggregate_text(self, results: List[OCRResult]) -> str:
+        content_frames = [f for f in valid_results if f.has_content]
+        aggregated_text = self.aggregate_text(valid_results)
+
+        return VideoOCRResult(
+            frames=valid_results,
+            aggregated_text=aggregated_text,
+            content_frames=content_frames,
+            total_frames_processed=len(sampled),
+            frames_with_text=len(content_frames)
+        )
+
+    def aggregate_text(self, results: List[FrameOCRData]) -> str:
         """Merge OCR results from multiple frames into a single deduplicated string."""
         seen: set = set()
         lines: List[str] = []
@@ -107,7 +162,7 @@ class OCRService:
 
     # ── Internal ──────────────────────────────────────────────────────────────
 
-    def _ocr_frame(self, frame_path: str, timestamp_secs: float) -> Optional[OCRResult]:
+    def _ocr_frame(self, frame_path: str, timestamp_secs: float, audio_language: Optional[str] = None) -> Optional[FrameOCRData]:
         """Synchronous Tesseract call — runs in thread pool."""
         try:
             img = cv2.imread(str(frame_path))
@@ -123,10 +178,12 @@ class OCRService:
             preprocessed = self._preprocess(img)
             pil_img = Image.fromarray(preprocessed)
 
+            tess_lang = self.LANGUAGE_TO_TESSERACT.get(audio_language, self.default_lang) if audio_language else self.default_lang
+
             # Get data with per-word confidence
             data = pytesseract.image_to_data(
                 pil_img,
-                lang=self.lang,
+                lang=tess_lang,
                 config=self.tesseract_config,
                 output_type=pytesseract.Output.DICT,
             )
@@ -143,12 +200,22 @@ class OCRService:
             cleaned  = self._clean(raw_text)
             avg_conf = float(np.mean(confidences)) if confidences else 0.0
 
-            return OCRResult(
+            # Calculate frame_index from filename if possible, otherwise assume 0
+            try:
+                frame_index = int(Path(frame_path).stem.split('_')[-1])
+            except ValueError:
+                frame_index = 0
+
+            has_content = len([w for w in cleaned.split() if w.strip()]) >= 3
+
+            return FrameOCRData(
+                frame_index=frame_index,
                 frame_path=str(frame_path),
                 timestamp_secs=timestamp_secs,
                 raw_text=raw_text,
                 cleaned_text=cleaned,
                 confidence=avg_conf,
+                has_content=has_content
             )
         except Exception as exc:
             logger.warning(f"OCR failed on {frame_path}: {exc}")

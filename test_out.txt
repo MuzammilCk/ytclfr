@@ -1,0 +1,89 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.5, pytest-8.3.4, pluggy-1.6.0 -- C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\python.exe
+cachedir: .pytest_cache
+rootdir: D:\projects\youtube-classifier
+configfile: pytest.ini
+plugins: anyio-4.12.0, Faker-40.4.0, jaxtyping-0.3.7, langsmith-0.4.49, asyncio-0.25.2, cov-6.0.0, mock-3.15.1, typeguard-2.13.3
+asyncio: mode=Mode.AUTO, asyncio_default_fixture_loop_scope=function
+collecting ... collected 1 item
+
+tests/unit/test_recipe_parsing.py::test_extract_ingredients FAILED       [100%]
+
+================================== FAILURES ===================================
+__________________________ test_extract_ingredients ___________________________
+
+    def test_extract_ingredients():
+        extractor = RecipeExtractor()
+    
+        # Mock OCR data
+        mock_data = [
+            FrameOCRData(
+                frame_index=0,
+                timestamp_secs=1.0,
+                frame_path="/tmp/f.jpg",
+                raw_text="2 cups flour\n1/2 tsp salt\n1.5 tbsp olive oil\n3 large eggs\nA pinch of black pepper\n- 2 oz shredded cheese\n1 1/2 lbs chicken breast\nSome random text",
+                cleaned_text="2 cups flour\n1/2 tsp salt\n1.5 tbsp olive oil\n3 large eggs\nA pinch of black pepper\n- 2 oz shredded cheese\n1 1/2 lbs chicken breast\nSome random text",
+                confidence=100.0,
+                has_content=True,
+                detected_items=[]
+            )
+        ]
+    
+        ingredients = extractor._extract_ingredients(mock_data)
+    
+        assert len(ingredients) == 7
+    
+        assert ingredients[0] == {"quantity": 2.0, "unit": "cup", "name": "flour"}
+        assert ingredients[1] == {"quantity": 0.5, "unit": "tsp", "name": "salt"}
+        assert ingredients[2] == {"quantity": 1.5, "unit": "tbsp", "name": "olive oil"}
+        assert ingredients[3] == {"quantity": 3.0, "unit": None, "name": "large eggs"}
+        assert ingredients[4] == {"quantity": None, "unit": "pinch", "name": "black pepper"}
+>       assert ingredients[5] == {"quantity": 2.0, "unit": "oz", "name": "shredded cheese"}
+E       AssertionError: assert {'quantity': 2.0, 'unit': None, 'name': 'oz shredded cheese'} == {'quantity': 2.0, 'unit': 'oz', 'name': 'shredded cheese'}
+E         
+E         Common items:
+E         {'quantity': 2.0}
+E         Differing items:
+E         {'name': 'oz shredded cheese'} != {'name': 'shredded cheese'}
+E         {'unit': None} != {'unit': 'oz'}
+E         
+E         Full diff:
+E           {
+E         -     'name': 'shredded cheese',
+E         +     'name': 'oz shredded cheese',
+E         ?              +++
+E               'quantity': 2.0,
+E         -     'unit': 'oz',
+E         ?             ^ ^^
+E         +     'unit': None,
+E         ?             ^ ^^
+E           }
+
+tests\unit\test_recipe_parsing.py:31: AssertionError
+============================== warnings summary ===============================
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\pydantic\v1\typing.py:68: 22 warnings
+  C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\pydantic\v1\typing.py:68: DeprecationWarning: Failing to pass a value to the 'type_params' parameter of 'typing.ForwardRef._evaluate' is deprecated, as it leads to incorrect behaviour when calling typing.ForwardRef._evaluate on a stringified annotation that references a PEP 695 type parameter. It will be disallowed in Python 3.15.
+    return cast(Any, type_)._evaluate(globalns, localns, recursive_guard=set())
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/unit/test_recipe_parsing.py::test_extract_ingredients - AssertionError: assert {'quantity': 2.0, 'unit': None, 'name': 'oz shredded cheese'} == {'quantity': 2.0, 'unit': 'oz', 'name': 'shredded cheese'}
+  
+  Common items:
+  {'quantity': 2.0}
+  Differing items:
+  {'name': 'oz shredded cheese'} != {'name': 'shredded cheese'}
+  {'unit': None} != {'unit': 'oz'}
+  
+  Full diff:
+    {
+  -     'name': 'shredded cheese',
+  +     'name': 'oz shredded cheese',
+  ?              +++
+        'quantity': 2.0,
+  -     'unit': 'oz',
+  ?             ^ ^^
+  +     'unit': None,
+  ?             ^ ^^
+    }
+======================= 1 failed, 22 warnings in 2.87s ========================

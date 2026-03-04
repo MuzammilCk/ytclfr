@@ -133,8 +133,11 @@ class TranscriptSegment(BaseModel):
 
 class TranscriptResult(BaseModel):
     full_text: str
+    full_text_english: Optional[str] = None
     language: str
+    was_translated: bool = False
     segments: List[TranscriptSegment]
+    segments_english: Optional[List[TranscriptSegment]] = None
     word_count: int
 
 
@@ -303,3 +306,33 @@ class AnalyticsByDateResponse(BaseModel):
     date: str                                # ISO date string, e.g. "2025-01-15"
     analyses_count: int
     categories: Dict[str, int]               # category breakdown for that date
+
+
+# ── Training / Labeling ────────────────────────────────────────────────────────
+
+VALID_CATEGORIES = frozenset([
+    "listicle", "music", "educational", "comedy", "shopping",
+    "recipe", "documentary", "tutorial", "news", "other",
+])
+
+
+class LabelRequest(BaseModel):
+    sample_id: str = Field(..., description="UUID filename (without .json) of the training sample")
+    human_label: str = Field(..., description="One of the 10 known categories")
+
+    @field_validator("human_label")
+    @classmethod
+    def validate_label(cls, v: str) -> str:
+        v = v.lower().strip()
+        if v not in VALID_CATEGORIES:
+            raise ValueError(f"human_label must be one of: {sorted(VALID_CATEGORIES)}")
+        return v
+
+
+class TrainingSampleMeta(BaseModel):
+    sample_id: str
+    video_title: Optional[str] = None
+    predicted_category: Optional[str] = None
+    confidence: Optional[float] = None
+    human_label: Optional[str] = None
+    is_labeled: bool = False

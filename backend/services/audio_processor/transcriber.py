@@ -40,6 +40,9 @@ class TranscriptionResult:
     language: str
     language_probability: float
     segments: List[Segment]
+    full_text_english: Optional[str] = None
+    segments_english: Optional[List[Segment]] = None
+    was_translated: bool = False
     word_count: int = field(init=False)
 
     def __post_init__(self):
@@ -119,12 +122,50 @@ class AudioTranscriber:
             None, self._transcribe_sync, effective_path, language
         )
 
+    async def transcribe_with_translation(
+        self,
+        audio_path: str,
+        language: Optional[str] = None,
+        use_source_separation: bool = False,
+    ) -> TranscriptionResult:
+        """
+        Transcribes audio. If the detected language is non-English (prob > 0.7),
+        runs a second pass to translate it using Whisper's built-in task="translate".
+        """
+        effective_path = audio_path
+        if use_source_separation:
+            try:
+                effective_path = await asyncio.get_running_loop().run_in_executor(
+                    None, self._run_source_separation, audio_path
+                )
+            except Exception as exc:
+                logger.warning(f"Source separation failed (will use raw audio): {exc}")
+
+        # Pass 1: Native Transcription
+        result_native = await asyncio.get_running_loop().run_in_executor(
+            None, self._transcribe_sync, effective_path, language
+        )
+
+        # Pass 2: Translation if non-English
+        if result_native.language != "en" and result_native.language_probability > 0.7:
+             logger.info(f"Language is {result_native.language} ({result_native.language_probability:.2%}). Translating to English.")
+             result_translated = await asyncio.get_running_loop().run_in_executor(
+                 None, self._transcribe_sync, effective_path, language, "translate"
+             )
+             
+             result_native.full_text_english = result_translated.full_text
+             result_native.segments_english = result_translated.segments
+             result_native.was_translated = True
+             
+        return result_native
+
     # ── Internal ──────────────────────────────────────────────────────────────
 
     def _transcribe_sync(
         self,
         audio_path: str,
         language: Optional[str],
+        task: str = "transcribe"
     ) -> TranscriptionResult:
         # Prefer the model pre-loaded by the Celery worker_process_init signal;
         # fall back to the local lazy-load singleton if running outside Celery.
@@ -149,13 +190,13 @@ class AudioTranscriber:
         except Exception:
             pass  # non-fatal; just skip the duration check
 
-        logger.info(f"Transcribing: {Path(audio_path).name} (language={language or 'auto'})")
+        logger.info(f"Transcribing (task={task}): {Path(audio_path).name} (language={language or 'auto'})")
 
         # faster-whisper returns a generator + info object
         segments_gen, info = model.transcribe(
             audio_path,
             language=language,          # None → auto-detect
-            task="transcribe",
+            task=task,
             word_timestamps=True,
             beam_size=5,
             best_of=5,

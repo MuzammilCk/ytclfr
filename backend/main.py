@@ -8,6 +8,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from loguru import logger
 from prometheus_fastapi_instrumentator import Instrumentator
 
@@ -18,6 +19,7 @@ from api.routes.analytics import router as analytics_router
 from api.routes.auth import router as auth_router
 from api.routes.users import router as users_router
 from api.middleware.rate_limiter import RateLimiterMiddleware
+from api.routes.admin import router as admin_router
 
 settings = get_settings()
 
@@ -82,9 +84,11 @@ def create_app() -> FastAPI:
         async def dispatch(self, request: Request, call_next):
             req_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
             request.state.request_id = req_id
-            response = await call_next(request)
-            response.headers["X-Request-ID"] = req_id
-            return response
+            
+            with logger.contextualize(request_id=req_id):
+                response = await call_next(request)
+                response.headers["X-Request-ID"] = req_id
+                return response
 
     # Starlette applies middleware in REVERSE registration order.
     # Add CORSMiddleware LAST so it wraps everything and always fires.
@@ -99,6 +103,15 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    # ── Static Files ───────────────────────────────────────────────────────────
+    import os
+    os.makedirs(settings.FRAMES_DIR, exist_ok=True)
+    app.mount(
+        "/frames",
+        StaticFiles(directory=settings.FRAMES_DIR),
+        name="frames"
+    )
+
     # ── Prometheus metrics ─────────────────────────────────────────────────────
     Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
@@ -107,6 +120,7 @@ def create_app() -> FastAPI:
     app.include_router(analytics_router)
     app.include_router(auth_router)
     app.include_router(users_router)
+    app.include_router(admin_router)
 
     # ── Health check ───────────────────────────────────────────────────────────
     @app.get("/health", tags=["Ops"])

@@ -42,7 +42,7 @@ from PIL import Image, UnidentifiedImageError
 from sklearn.metrics import classification_report, confusion_matrix
 import numpy as np
 
-CATEGORIES = ["comedy", "listicle", "music", "educational", "news", "review", "gaming", "vlog", "shopping"]
+CATEGORIES = ["comedy", "listicle", "music", "educational", "news", "review", "gaming", "vlog", "shopping", "recipe"]
 N_CLASSES = len(CATEGORIES)
 
 

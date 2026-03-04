@@ -164,7 +164,7 @@ class TMDbService:
             return None
 
     async def get_streaming(
-        self, tmdb_id: int, region: str = "US"
+        self, tmdb_id: int, region: str = "US", media_type: str = "movie"
     ) -> Optional[StreamingAvailability]:
         """
         Fetch streaming availability from TMDb's /watch/providers endpoint.
@@ -175,7 +175,7 @@ class TMDbService:
         try:
             client = await self._get_client()
             resp = await client.get(
-                f"/movie/{tmdb_id}/watch/providers",
+                f"/{media_type}/{tmdb_id}/watch/providers",
                 params={"api_key": self._api_key},
             )
             resp.raise_for_status()
@@ -187,7 +187,7 @@ class TMDbService:
                 buy=[p["provider_name"] for p in region_data.get("buy", [])],
             )
         except Exception as exc:
-            logger.warning(f"TMDb streaming lookup failed for {tmdb_id}: {exc}")
+            logger.warning(f"TMDb streaming lookup failed for {media_type} {tmdb_id}: {exc}")
             return None
 
     async def enrich_list_items(
@@ -201,11 +201,22 @@ class TMDbService:
 
         async def enrich_one(item: Dict) -> Dict:
             async with SEM:
+                # 1. Search Movie
+                media_type = "movie"
                 info = await self.search_movie(
                     item.get("title", ""), item.get("year")
                 )
+                
+                # 2. Fallback to TV Show if Movie not found
+                if not info:
+                    info = await self.search_tv_show(
+                        item.get("title", ""), item.get("year")
+                    )
+                    if info:
+                        media_type = "tv"
+
                 if info:
-                    streaming = await self.get_streaming(info.tmdb_id)
+                    streaming = await self.get_streaming(info.tmdb_id, media_type=media_type)
                     info.streaming = streaming
                     item.update({
                         "tmdb_id": info.tmdb_id,
@@ -213,6 +224,7 @@ class TMDbService:
                         "poster_url": info.poster_url,
                         "description": info.overview[:200] if info.overview else None,
                         "imdb_url": info.imdb_url,
+                        "media_type": media_type,
                         "streaming": {
                             "flatrate": info.streaming.flatrate if info.streaming else [],
                             "rent": info.streaming.rent if info.streaming else [],

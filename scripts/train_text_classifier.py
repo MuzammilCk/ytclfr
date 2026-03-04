@@ -33,7 +33,7 @@ from torch.utils.data import DataLoader, Dataset, random_split
 from transformers import BertModel, BertTokenizer
 from sklearn.metrics import classification_report
 
-CATEGORIES = ["comedy", "listicle", "music", "educational", "news", "review", "gaming", "vlog", "shopping"]
+CATEGORIES = ["comedy", "listicle", "music", "educational", "news", "review", "gaming", "vlog", "shopping", "recipe"]
 N_CLASSES = len(CATEGORIES)
 MAX_LEN = 512
 

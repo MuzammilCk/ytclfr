@@ -16,6 +16,8 @@ from typing import Any, Dict, List, Optional, Tuple
 import spacy
 from loguru import logger
 
+from services.vision.ocr_service import FrameOCRData
+
 # Lazy load spacy model
 _nlp: Optional[Any] = None
 
@@ -176,6 +178,7 @@ class BaseExtractor(ABC):
         segments: List[Dict],
         metadata: Dict[str, Any],
         frame_paths: List[str],
+        frame_ocr_results: List[FrameOCRData],
     ) -> Dict[str, Any]:
         ...
 
@@ -183,7 +186,7 @@ class BaseExtractor(ABC):
 # ── Comedy extractor ──────────────────────────────────────────────────────────
 
 class ComedyExtractor(BaseExtractor):
-    def extract(self, transcript_text, segments, metadata, frame_paths):
+    def extract(self, transcript_text, segments, metadata, frame_paths, frame_ocr_results):
         logger.info("Running ComedyExtractor")
         entities = _extract_named_entities(transcript_text)
         key_moments = self._detect_punchlines(segments)
@@ -227,27 +230,67 @@ class ComedyExtractor(BaseExtractor):
 # ── Listicle extractor ────────────────────────────────────────────────────────
 
 class ListicleExtractor(BaseExtractor):
-    def extract(self, transcript_text, segments, metadata, frame_paths):
+    def extract(self, transcript_text, segments, metadata, frame_paths, frame_ocr_results):
         logger.info("Running ListicleExtractor")
-        combined = metadata.get("description", "") + "\n" + transcript_text
-        ranked = _extract_ranked_list(combined)
 
-        items = []
-        for rank, title in ranked:
-            # Clean common noise: "(2019)", "[HD]", etc.
-            clean_title = re.sub(r"\(.*?\)|\[.*?\]", "", title).strip()
-            items.append({
-                "rank": rank,
-                "title": clean_title,
-                "source": "transcript",
-                "description": None,    # will be enriched by TMDbService
-                "year": None,
-                "tmdb_rating": None,
-                "tmdb_id": None,
-                "poster_url": None,
-                "streaming": None,
-                "imdb_url": None,
-            })
+        # ── Detect whether this is a book list ─────────────────────────────────
+        is_book_list = self._is_book_list(metadata)
+
+        items = self._parse_from_ocr(frame_ocr_results)
+
+        if len(items) < 2:
+            logger.info("Falling back to transcript/description for listicle extraction")
+            combined = metadata.get("description", "") + "\n" + transcript_text
+            ranked = _extract_ranked_list(combined)
+            
+            # If transcript has more items, use it
+            if len(ranked) > len(items):
+                items = []
+                for rank, title in ranked:
+                    clean_title = re.sub(r"\(.*?\)|\[.*?\]", "", title).strip()
+                    items.append({
+                        "rank": rank,
+                        "title": clean_title,
+                        "source": "transcript",
+                        "timestamp_secs": None,
+                        "source_frame_index": None,
+                    })
+
+        # Deduplicate the merged items in case there are duplicates
+        unique_items = []
+        seen = set()
+        for item in items:
+            key = (item.get("title", "") or "").strip().lower()
+            if key and key not in seen:
+                seen.add(key)
+                if is_book_list:
+                    # Book list enrichment fields (populated async by google_books_service)
+                    item.update({
+                        "item_type": "book",
+                        "description": None,
+                        "authors": None,
+                        "isbn": None,
+                        "thumbnail": None,
+                        "google_books_url": None,
+                        "goodreads_url": None,
+                        "amazon_url": None,
+                        "published_date": None,
+                        "page_count": None,
+                    })
+                else:
+                    # Movie/TV enrichment fields (populated async by TMDbService)
+                    item.update({
+                        "item_type": "media",
+                        "description": None,
+                        "year": None,
+                        "tmdb_rating": None,
+                        "tmdb_id": None,
+                        "poster_url": None,
+                        "streaming": None,
+                        "imdb_url": None,
+                    })
+                unique_items.append(item)
+        items = unique_items
 
         if len(items) < 2:
             tag_items = self._extract_from_tags(metadata.get("tags", []))
@@ -263,32 +306,129 @@ class ListicleExtractor(BaseExtractor):
                 sorted_items = sorted(combined_map.values(), key=lambda x: x["confidence"], reverse=True)
                 items = []
                 for i, item in enumerate(sorted_items):
-                    items.append({
+                    base = {
                         "rank": i + 1,
                         "title": item["title"],
                         "source": item["source"],
-                        "description": None,
-                        "year": None,
-                        "tmdb_rating": None,
-                        "tmdb_id": None,
-                        "poster_url": None,
-                        "streaming": None,
-                        "imdb_url": None,
-                    })
+                        "timestamp_secs": None,
+                        "source_frame_index": None,
+                    }
+                    if is_book_list:
+                        base.update({
+                            "item_type": "book",
+                            "description": None,
+                            "authors": None,
+                            "isbn": None,
+                            "thumbnail": None,
+                            "google_books_url": None,
+                            "goodreads_url": None,
+                            "amazon_url": None,
+                            "published_date": None,
+                            "page_count": None,
+                        })
+                    else:
+                        base.update({
+                            "item_type": "media",
+                            "description": None,
+                            "year": None,
+                            "tmdb_rating": None,
+                            "tmdb_id": None,
+                            "poster_url": None,
+                            "streaming": None,
+                            "imdb_url": None,
+                        })
+                    items.append(base)
 
         summary = None
         if items and not transcript_text.strip().replace(".", ""):
             names = ", ".join(i["title"] for i in items[:5])
             suffix = f" and {len(items) - 5} more" if len(items) > 5 else ""
-            summary = f"A movie/media list featuring: {names}{suffix}."
+            summary = f"A {'book' if is_book_list else 'media'} list featuring: {names}{suffix}."
 
         return {
             "type": "listicle",
             "list_title": metadata.get("title", ""),
             "summary": summary,
+            "is_book_list": is_book_list,
             "items": items,
             "total_count": len(items),
         }
+
+    @staticmethod
+    def _clean_listicle_title(raw_text: str) -> Tuple[str, Optional[int]]:
+        """
+        Extract title and optional year from dirty OCR text.
+        e.g., "#1 THE SHAWSHANK REDEMPTION (1994)" -> ("The Shawshank Redemption", 1994)
+        """
+        # 1. Strip rank prefix if any
+        rank_strip_re = re.compile(r"^(?:top\s+|best\s+)?(?:#|no\.?\s*|number\s*)?\d{1,3}[\.\)\-:\s]+", re.I)
+        text = rank_strip_re.sub("", raw_text).strip()
+        
+        # 2. Extract year (4 digits in parens or brackets)
+        year = None
+        year_re = re.compile(r"[\(\[](19[0-9]{2}|20[0-2][0-9])[\)\]]")
+        year_match = year_re.search(text)
+        if year_match:
+            year = int(year_match.group(1))
+            text = text[:year_match.start()] + text[year_match.end():]
+        
+        # 3. Strip noise words / phrases
+        noise_phrases = [
+            "THE BEST", "BEST MOVIE EVER", "GREATEST EVER", "MUST WATCH",
+            "TOP MOVIE", "NUMBER ONE", "WATCH", "MOVIE", "FILM"
+        ]
+        text_upper = text.upper()
+        for phrase in noise_phrases:
+            if text_upper.startswith(phrase):
+                # Cut it off
+                text = text[len(phrase):].strip(" -:")
+                text_upper = text.upper()
+        
+        # 4. Clean up and title case
+        clean_title = re.sub(r"\(.*?\)|\[.*?\]", "", text).strip()
+        clean_title = re.sub(r"\s+", " ", clean_title) # reduce multiple spaces
+        return clean_title.title(), year
+
+    def _parse_from_ocr(self, ocr_results: List[FrameOCRData]) -> List[Dict[str, Any]]:
+        items = []
+        # Support Numbered: 1., #1, No. 1, Number 1, 1), TOP 1, BEST #1
+        rank_re = re.compile(r"^(?:top\s+|best\s+)?(?:#|no\.?\s*|number\s*)?(\d{1,3})[\.\)\-:\s]+", re.I)
+        
+        for frame in ocr_results:
+            if not frame.has_content:
+                continue
+                
+            lines = [line.strip() for line in frame.cleaned_text.split('\n') if line.strip()]
+            for i, line in enumerate(lines):
+                if len(line) < 2:
+                    continue
+                    
+                rank = None
+                title = None
+                rank_match = rank_re.match(line)
+                if rank_match:
+                    rank = int(rank_match.group(1))
+                    title = line[rank_match.end():].strip()
+                    if not title and i + 1 < len(lines):
+                        title = lines[i+1].strip()
+                elif line.isdigit() and i + 1 < len(lines):
+                    # Multi-line
+                    rank = int(line)
+                    title = lines[i+1].strip()
+                    
+                if title and rank is not None and rank <= 100:
+                    clean_title, year_hint = self._clean_listicle_title(title)
+                    if len(clean_title) >= 2:
+                        items.append({
+                            "rank": rank,
+                            "title": clean_title,
+                            "year": year_hint,
+                            "source": "ocr",
+                            "timestamp_secs": frame.timestamp_secs,
+                            "source_frame_index": frame.frame_index,
+                        })
+                        
+        return sorted(items, key=lambda x: x.get("timestamp_secs", float('inf')))
 
     @staticmethod
     def _extract_from_tags(tags: List[str]) -> List[Dict[str, Any]]:
@@ -348,25 +488,55 @@ class ListicleExtractor(BaseExtractor):
             })
         return items
 
+    @staticmethod
+    def _is_book_list(metadata: Dict[str, Any]) -> bool:
+        """
+        Detect whether this listicle is a book/reading list.
+        Uses title, description, and tags heuristics.
+        """
+        _BOOK_SIGNALS = re.compile(
+            r"\b(books?|novels?|reads?|reading list|must[- ]read|book recommendations?|"
+            r"bibliography|goodreads|bestsellers?|authors?)\b",
+            re.I,
+        )
+        combined = " ".join([
+            metadata.get("title", ""),
+            metadata.get("description", "")[:500],
+            " ".join(metadata.get("tags", [])),
+        ])
+        return bool(_BOOK_SIGNALS.search(combined))
+
 
 # ── Music extractor ───────────────────────────────────────────────────────────
 
 class MusicExtractor(BaseExtractor):
-    def extract(self, transcript_text, segments, metadata, frame_paths):
+    def extract(self, transcript_text, segments, metadata, frame_paths, frame_ocr_results):
         logger.info("Running MusicExtractor")
-        # Try description first (richer formatting); fall back to transcript
-        source = metadata.get("description", "") or transcript_text
-        raw_tracks = _parse_music_entries(source)
-
+        
+        raw_tracks = self._parse_from_ocr(frame_ocr_results)
+        
         if len(raw_tracks) < 3:
-            # Fall back to transcript
-            raw_tracks = _parse_music_entries(transcript_text)
+            logger.info(f"Only found {len(raw_tracks)} tracks via OCR. Falling back to transcript/description.")
+            source = metadata.get("description", "") or transcript_text
+            fallback_tracks = _parse_music_entries(source)
+            if len(fallback_tracks) < 3:
+                fallback_tracks = _parse_music_entries(transcript_text)
+                
+            if len(fallback_tracks) > len(raw_tracks):
+                raw_tracks = fallback_tracks
+                # Inject None for missing properties
+                for t in raw_tracks:
+                    t["timestamp_secs"] = None
+                    t["source_frame_index"] = None
+                    t["source_frame_path"] = None
 
         tracks = []
         seen: set = set()
+        
+        # Deduplication: rely on chronological sort from frame OCR or source transcript
         for t in raw_tracks:
             key = (t.get("title", "") or "").strip().lower()
-            if key and key in seen:
+            if not key or key in seen:
                 continue
             seen.add(key)
             tracks.append({
@@ -376,21 +546,79 @@ class MusicExtractor(BaseExtractor):
                     "spotify_id": None,
                     "found": False,
                 },
-                "timestamp_secs": None,
             })
 
         return {
             "type": "music",
             "tracks": tracks,
             "total_count": len(tracks),
-            "spotify_playlist_url": None,   # set after Spotify call
+            "spotify_playlist_url": None,
         }
+
+    def _parse_from_ocr(self, ocr_results: List[FrameOCRData]) -> List[Dict[str, Any]]:
+        tracks = []
+        artist_split = re.compile(r"\s*[-–—|×]\s*|\s+by\s+|\s+ft\.?\s+|\s+feat\.?\s+", re.I)
+        year_re = re.compile(r"\b(19|20)\d{2}\b")
+        rank_re = re.compile(r"^(?:#|no\.?\s*|number\s*)?(\d{1,3})[\.\)\-:\s]+", re.I)
+        
+        for frame in ocr_results:
+            if not frame.has_content:
+                continue
+                
+            lines = [line.strip() for line in frame.cleaned_text.split('\n') if line.strip()]
+            for i, line in enumerate(lines):
+                if len(line) < 4:
+                    continue
+                    
+                rank = None
+                rank_match = rank_re.match(line)
+                if rank_match:
+                    rank = int(rank_match.group(1))
+                    line = line[rank_match.end():].strip()
+                elif line.isdigit() and i + 1 < len(lines):
+                    # Multiline: rank is on this line, next line is title/artist
+                    rank = int(line)
+                    line = lines[i+1].strip()
+                    
+                parts = artist_split.split(line, maxsplit=1)
+                
+                title, artist = None, None
+                if len(parts) == 2:
+                    title, artist = parts[0].strip(), parts[1].strip()
+                else:
+                    # Check Artist "Song" or Song (Artist)
+                    quotes_match = re.search(r'^(.*?)\s*["“”](.*?)["“”]', line)
+                    if quotes_match:
+                        artist, title = quotes_match.group(1).strip(), quotes_match.group(2).strip()
+                    else:
+                        parens_match = re.search(r'^(.*?)\s*\((.*?)\)', line)
+                        if parens_match:
+                            title, artist = parens_match.group(1).strip(), parens_match.group(2).strip()
+                            
+                if title and artist:
+                    title = title.strip('"“”\'')
+                    year_match = year_re.search(line)
+                    
+                    tracks.append({
+                        "rank": rank,
+                        "title": title,
+                        "artist": artist,
+                        "year": year_match.group() if year_match else None,
+                        "timestamp_secs": frame.timestamp_secs,
+                        "source_frame_index": frame.frame_index,
+                        "source_frame_path": frame.frame_path,
+                        "album": None,
+                        "genre": None,
+                    })
+                    
+        # Return sorted by timestamp so earliest is processed first for deduplication
+        return sorted(tracks, key=lambda x: x.get("timestamp_secs", float('inf')))
 
 
 # ── Educational extractor ─────────────────────────────────────────────────────
 
 class EducationalExtractor(BaseExtractor):
-    def extract(self, transcript_text, segments, metadata, frame_paths):
+    def extract(self, transcript_text, segments, metadata, frame_paths, frame_ocr_results):
         logger.info("Running EducationalExtractor")
         description = metadata.get("description", "")
         chapters = _parse_chapters_from_description(description)
@@ -447,7 +675,7 @@ class EducationalExtractor(BaseExtractor):
 # ── Generic extractor ─────────────────────────────────────────────────────────
 
 class GenericExtractor(BaseExtractor):
-    def extract(self, transcript_text, segments, metadata, frame_paths):
+    def extract(self, transcript_text, segments, metadata, frame_paths, frame_ocr_results):
         logger.info("Running GenericExtractor")
         entities = _extract_named_entities(transcript_text)
         key_points = _extract_key_phrases(transcript_text)
@@ -493,17 +721,54 @@ class ShoppingExtractor(BaseExtractor):
         segments: List[Dict],
         metadata: Dict[str, Any],
         frame_paths: List[str],
+        frame_ocr_results: List[FrameOCRData],
     ) -> Dict[str, Any]:
         logger.info("Running ShoppingExtractor")
 
         products = self._build_product_list()
+
+        # Build OCR map for quick frame lookup
+        ocr_map = {f.frame_path: f for f in frame_ocr_results if f.has_content}
+        
+        # Merge OCR context onto YOLO products
+        price_re = re.compile(r"\$\d+(?:,\d{3})*(?:\.\d{2})?")
+        
+        for p in products:
+            best_name = None
+            best_price = None
+            
+            for f_path in p.get("frame_timestamps", []):
+                if f_path in ocr_map:
+                    text = ocr_map[f_path].cleaned_text
+                    lines = text.split('\n')
+                    for line in lines:
+                        # Find price
+                        price_match = price_re.search(line)
+                        price_str = price_match.group(0) if price_match else None
+                        
+                        # Find potential name (avoiding just the price string itself)
+                        name_str = re.sub(r"\$\d+(?:,\d{3})*(?:\.\d{2})?", "", line)
+                        name_str = re.sub(r"Product Name|Price", "", name_str, flags=re.I).strip(' -|:')
+                        
+                        if len(name_str) > 3 and not best_name:
+                            best_name = name_str
+                            
+                        if price_str and not best_price:
+                            best_price = price_str
+                            
+            if best_name:
+                p["name"] = best_name
+                p["detection_source"] = "yolo+ocr"
+                p["search_url"] = self._google_shopping_url(best_name)
+            if best_price:
+                p["price"] = best_price
 
         # Supplement with NLP-detected product-like PRODUCT / ORG entities
         entities = _extract_named_entities(transcript_text)
         brand_mentions = list({e for e in entities.get("ORG", []) if len(e) >= 3})[:10]
         product_mentions = list({e for e in entities.get("PRODUCT", []) if len(e) >= 3})[:10]
 
-        # Merge NLP products that are not already covered by YOLO
+        # Merge NLP products that are not already covered by YOLO/OCR
         yolo_names = {p["name"].lower() for p in products}
         seen_nlp: set = set()
         for name in product_mentions:
@@ -514,6 +779,7 @@ class ShoppingExtractor(BaseExtractor):
                     "name": name,
                     "brand": None,
                     "category": "mentioned",
+                    "price": None,
                     "frame_timestamps": [],
                     "detection_source": "nlp",
                     "confidence": None,
@@ -544,6 +810,7 @@ class ShoppingExtractor(BaseExtractor):
                     "name": label.replace("_", " ").title(),
                     "brand": None,
                     "category": self._infer_category(label),
+                    "price": None,
                     "frame_timestamps": [],
                     "detection_source": "yolo",
                     "confidence": det.confidence,
@@ -588,6 +855,173 @@ class ShoppingExtractor(BaseExtractor):
         return f"https://www.google.com/search?tbm=shop&q={quote_plus(query)}"
 
 
+# ── Recipe extractor ──────────────────────────────────────────────────────────
+
+class RecipeExtractor(BaseExtractor):
+    def extract(self, transcript_text, segments, metadata, frame_paths, frame_ocr_results):
+        logger.info("Running RecipeExtractor")
+        
+        ingredients = self._extract_ingredients(frame_ocr_results)
+        steps = self._extract_steps(transcript_text, frame_ocr_results)
+        
+        # Look for prep/cook time in description
+        desc = metadata.get("description", "").lower()
+        prep_time = self._extract_time(desc, "prep")
+        cook_time = self._extract_time(desc, "cook")
+        
+        # Look for servings
+        servings_match = re.search(r"(?:yields|servings|serves)\s*:\s*(\d+)", desc)
+        servings = int(servings_match.group(1)) if servings_match else None
+        
+        return {
+            "type": "recipe",
+            "title": metadata.get("title", ""),
+            "ingredients": ingredients,
+            "steps": steps,
+            "servings": servings,
+            "prep_time": prep_time,
+            "cook_time": cook_time,
+        }
+
+    def _extract_ingredients(self, ocr_results: List[FrameOCRData]) -> List[Dict]:
+        ingredients = []
+        seen = set()
+        
+        # Unit normalization map
+        unit_map = {
+            "cup": "cup", "cups": "cup", "c": "cup",
+            "tsp": "tsp", "teaspoon": "tsp", "teaspoons": "tsp",
+            "tbsp": "tbsp", "tablespoon": "tbsp", "tablespoons": "tbsp",
+            "oz": "oz", "ounce": "oz", "ounces": "oz",
+            "lb": "lb", "lbs": "lb", "pound": "lb", "pounds": "lb",
+            "g": "g", "gram": "g", "grams": "g",
+            "kg": "kg", "kilogram": "kg", "kilograms": "kg",
+            "ml": "ml", "milliliter": "ml", "milliliters": "ml",
+            "l": "l", "liter": "l", "liters": "l",
+            "pinch": "pinch", "pinches": "pinch",
+            "dash": "dash", "dashes": "dash",
+            "clove": "clove", "cloves": "clove",
+            "piece": "piece", "pieces": "piece",
+            "slice": "slice", "slices": "slice",
+            "can": "can", "cans": "can",
+        }
+
+        # Match fractions "1/2", mixed "1 1/2", decimals "1.5", plain "2"
+        qty_re = r"(\d+(?:\s+\d+)?/\d+|\d+\.\d+|\d+)"
+        # Units
+        units_pattern = r"(?:" + "|".join(unit_map.keys()) + r")"
+        
+        # Pattern 1: Qty Unit Name (e.g., 2 cups flour)
+        ing_pattern = re.compile(rf"^{qty_re}\s+{units_pattern}\b\s+(.+)$", re.I)
+        # Pattern 2: Qty Name (e.g., 3 eggs, 1/2 onion) -- no unit
+        ing_pattern_nounit = re.compile(rf"^{qty_re}\s+(.+)$", re.I)
+        # Pattern 3: Unit Name (e.g., A pinch of salt, pinch of pepper)
+        ing_pattern_text_qty = re.compile(rf"^(?:a\s+)?({units_pattern})\s+(?:of\s+)?(.+)$", re.I)
+
+        def parse_qty(q_str: str) -> Optional[float]:
+            if not q_str: return None
+            q_str = q_str.strip()
+            try:
+                if "/" in q_str:
+                    parts = q_str.split()
+                    if len(parts) == 2:
+                        num, den = parts[1].split("/")
+                        return float(parts[0]) + (float(num) / float(den))
+                    else:
+                        num, den = q_str.split("/")
+                        return float(num) / float(den)
+                return float(q_str)
+            except ValueError:
+                return None
+
+        for frame in ocr_results:
+            if not frame.has_content:
+                continue
+                
+            lines = [line.strip() for line in frame.cleaned_text.split('\n') if line.strip()]
+            for line in lines:
+                # Strip leading list bullets from OCR
+                line = re.sub(r"^[-*•]\s+", "", line)
+
+                qty = None
+                unit = None
+                name = None
+
+                m1 = ing_pattern.match(line)
+                if m1:
+                    qty = parse_qty(m1.group(1))
+                    match_unit = re.search(units_pattern, line[m1.end(1):], re.I)
+                    if match_unit:
+                        unit = unit_map.get(match_unit.group(0).lower())
+                    name = m1.group(2).strip()
+                else:
+                    m2 = ing_pattern_nounit.match(line)
+                    if m2:
+                        qty = parse_qty(m2.group(1))
+                        name = m2.group(2).strip()
+                    else:
+                        m3 = ing_pattern_text_qty.match(line)
+                        if m3:
+                            qty = None
+                            unit = unit_map.get(m3.group(1).lower())
+                            name = m3.group(2).strip()
+
+                if name:
+                    # Filter junk like just dots
+                    name = re.sub(r'^[-\.\s]+', '', name).strip()
+                    if len(name) < 2:
+                        continue
+                        
+                    key = name.lower()
+                    if key not in seen:
+                        seen.add(key)
+                        ingredients.append({
+                            "quantity": qty,
+                            "unit": unit,
+                            "name": name,
+                        })
+                            
+        return ingredients
+
+    def _extract_steps(self, transcript: str, ocr_results: List[FrameOCRData]) -> List[Dict]:
+        steps = []
+        step_idx = 1
+        
+        step_re = re.compile(r"^step\s+(\d+)[\.:\s]+(.+)", re.I)
+        for frame in ocr_results:
+             if not frame.has_content:
+                continue
+             lines = [line.strip() for line in frame.cleaned_text.split('\n') if line.strip()]
+             for line in lines:
+                 m = step_re.match(line)
+                 if m:
+                     steps.append({
+                         "index": step_idx,
+                         "text": m.group(2).strip(),
+                         "timestamp_secs": frame.timestamp_secs
+                     })
+                     step_idx += 1
+                     
+        if not steps and transcript:
+            sentences = [s.strip() for s in transcript.split('.') if s.strip()]
+            keywords = ["first", "second", "next", "then", "now", "finally", "add", "mix", "stir", "bake", "cook", "pour"]
+            for s in sentences:
+                lower = s.lower()
+                if any(lower.startswith(k) for k in keywords) and len(s) > 15:
+                    steps.append({
+                        "index": step_idx,
+                        "text": s,
+                        "timestamp_secs": None
+                    })
+                    step_idx += 1
+                    
+        return steps
+
+    def _extract_time(self, text: str, prefix: str) -> Optional[str]:
+        m = re.search(rf"{prefix}\s*(?:time)?\s*:\s*(\d+\s*(?:min|mins|minutes|hr|hrs|hours))", text)
+        return m.group(1) if m else None
+
+
 # ── Factory ───────────────────────────────────────────────────────────────────
 
 _EXTRACTOR_MAP: Dict[str, BaseExtractor] = {
@@ -598,6 +1032,7 @@ _EXTRACTOR_MAP: Dict[str, BaseExtractor] = {
     "news": GenericExtractor(),
     "review": GenericExtractor(),
     "gaming": GenericExtractor(),
+    "recipe": RecipeExtractor(),
     "vlog": GenericExtractor(),
     "unknown": GenericExtractor(),
 }

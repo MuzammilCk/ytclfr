@@ -26,6 +26,8 @@ from core.config import get_settings
 settings = get_settings()
 
 
+import re
+
 @dataclass
 class TrackInfo:
     spotify_id: str
@@ -38,6 +40,7 @@ class TrackInfo:
     popularity: int
     preview_url: Optional[str]
     spotify_url: str
+    match_confidence: str = "exact"
     found: bool = True
 
 
@@ -74,6 +77,23 @@ def _build_oauth_client(access_token: str) -> spotipy.Spotify:
     return spotipy.Spotify(auth=access_token)
 
 
+def _clean_for_search(text: str) -> str:
+    """Removes rank numbers, years, and common noise decorators from track/artist names."""
+    if not text:
+        return ""
+    # Remove #1, No. 5, 20.
+    t = re.sub(r'^(?:#|No\.?)\s*\d+[\.\)]?\s*', '', text, flags=re.IGNORECASE)
+    t = re.sub(r'^\d+[\.\)]\s+', '', t)
+    # Remove (2020), [1994]
+    t = re.sub(r'[\(\[]\d{4}[\)\]]', '', t)
+    # Remove (feat. artist) or ft. artist
+    t = re.sub(r'(?i)\(?(?:feat\.|ft\.)[^)]*\)?', '', t)
+    # Remove smart quotes and other non-standard chars
+    t = t.replace('"', '').replace("'", "").replace("“", "").replace("”", "").replace("’", "").replace("‘", "")
+    t = t.replace("—", "-").replace("|", " ")
+    return t.strip()
+
+
 class SpotifyService:
     """
     Wraps spotipy to provide async-friendly track search and playlist creation.
@@ -89,12 +109,12 @@ class SpotifyService:
     # ── Public API ─────────────────────────────────────────────────────────────
 
     async def search_track(
-        self, title: str, artist: str
+        self, title: str, artist: str, ocr_raw: Optional[str] = None
     ) -> Optional[TrackInfo]:
         if not self._client:
             return None
         return await asyncio.get_running_loop().run_in_executor(
-            None, self._search_track_sync, title, artist
+            None, self._search_track_sync, title, artist, ocr_raw
         )
 
     async def create_playlist(
@@ -135,23 +155,45 @@ class SpotifyService:
 
     # ── Internal sync helpers ─────────────────────────────────────────────────
 
-    def _search_track_sync(self, title: str, artist: str) -> Optional[TrackInfo]:
-        """Synchronous Spotify search — runs in thread pool."""
+    def _search_track_sync(self, title: str, artist: str, ocr_raw: Optional[str] = None) -> Optional[TrackInfo]:
+        """Synchronous Spotify search — runs in thread pool with cascading strategies."""
         if not self._client:
             logger.debug("Spotify client not available; skipping track search")
             return None
 
+        clean_title = _clean_for_search(title)
+        clean_artist = _clean_for_search(artist)
+
+        strategies = [
+            (f'track:"{clean_title}" artist:"{clean_artist}"', "exact"),            # 1. exact match
+            (f'"{clean_title}" "{clean_artist}"', "exact"),                         # 2. strict quotes, no field
+            (f'"{clean_title}" {clean_artist}', "fuzzy"),                           # 3. quote title only
+            (f'{clean_title} {clean_artist}', "fuzzy"),                             # 4. loose text
+            (clean_title, "fuzzy"),                                                 # 5. title only
+        ]
+        if ocr_raw:
+            strategies.append((_clean_for_search(ocr_raw), "fuzzy"))               # 6. raw text
+
         auth_retried = False
-        for query in [
-            f'track:"{title}" artist:"{artist}"',
-            f"{title} {artist}",
-        ]:
+        for query, confidence in strategies:
+            if not query.strip():
+                continue
+                
             while True:
                 try:
                     results = self._client.search(q=query, type="track", limit=1, market="US")
                     items = results.get("tracks", {}).get("items", [])
                     if items:
                         t = items[0]
+                        
+                        # Verification logic: if it was a title-only search, ensure some artist name overlap
+                        if confidence == "fuzzy" and clean_artist:
+                            found_artists = " ".join([a["name"].lower() for a in t["artists"]])
+                            # Very basic fuzzy check — robust enough for now
+                            overlap = sum(1 for w in clean_artist.lower().split() if w in found_artists)
+                            if overlap == 0 and len(clean_artist.split()) > 0:
+                                break  # Skip this result, try next strategy
+
                         return TrackInfo(
                             spotify_id=t["id"],
                             uri=t["uri"],
@@ -163,6 +205,7 @@ class SpotifyService:
                             popularity=t["popularity"],
                             preview_url=t.get("preview_url"),
                             spotify_url=t["external_urls"]["spotify"],
+                            match_confidence=confidence,
                         )
                     break # success but no items, break out of while
                 except SpotifyException as exc:
@@ -172,10 +215,10 @@ class SpotifyService:
                         self._client = _build_client_credentials_client()
                         auth_retried = True
                         continue   # retry this exact query
-                    logger.warning(f"Spotify search error for '{title}' / '{artist}': {exc}")
+                    logger.warning(f"Spotify search error for '{query}': {exc}")
                     break
                 except Exception as exc:
-                    logger.warning(f"Spotify search error for '{title}' / '{artist}': {exc}")
+                    logger.warning(f"Spotify search error for '{query}': {exc}")
                     break
         
         return None

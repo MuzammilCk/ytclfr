@@ -39,7 +39,7 @@ from core.config import get_settings
 settings = get_settings()
 
 # ── Label definitions ─────────────────────────────────────────────────────────
-CATEGORIES = ["comedy", "listicle", "music", "educational", "news", "review", "gaming", "vlog", "shopping"]
+CATEGORIES = ["comedy", "listicle", "music", "educational", "news", "review", "gaming", "vlog", "shopping", "recipe"]
 N_CLASSES = len(CATEGORIES)
 
 

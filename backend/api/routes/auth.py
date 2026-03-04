@@ -106,6 +106,36 @@ async def get_current_user(
     return user
 
 
+async def get_current_user_optional(
+    request: Request,
+    db: AsyncSession = Depends(get_db_session),
+) -> Optional[User]:
+    """FastAPI dependency — returns the User if token is present, else None."""
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return None
+
+    token = auth_header.split(" ", 1)[1]
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+        if payload.get("type") != "access":
+            return None
+        user_id: str = payload["sub"]
+    except JWTError:
+        return None
+
+    from db.database import get_redis
+    redis = await get_redis()
+    if await redis.get(f"token_blacklist:{token}"):
+        return None
+
+    result = await db.execute(select(User).where(User.id == uuid.UUID(user_id)))
+    user = result.scalar_one_or_none()
+    if not user or not user.is_active:
+        return None
+    return user
+
+
 async def get_current_admin(current_user: User = Depends(get_current_user)) -> User:
     """FastAPI dependency — requires the user to have the ADMIN role."""
     from db.models import UserRole

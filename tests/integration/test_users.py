@@ -6,6 +6,7 @@ Verifies that Role-Based Access Control (RBAC) securely guards
 all endpoints against standard non-admin users.
 """
 import uuid
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -23,6 +24,8 @@ def get_mock_user(role=UserRole.USER):
         display_name="Test User",
         role=role,
         is_active=True,
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
     )
 
 def _make_mock_db(admin=False):
@@ -32,9 +35,10 @@ def _make_mock_db(admin=False):
     
     target_user = get_mock_user(role=UserRole.ADMIN if admin else UserRole.USER)
     mock_result.scalar_one_or_none.return_value = target_user
-    mock_result.scalars.return_value.all.return_value = [target_user]
+    mock_result.all.return_value = [target_user]
     
     mock_session.execute = AsyncMock(return_value=mock_result)
+    mock_session.scalars = AsyncMock(return_value=mock_result)
     mock_session.get = AsyncMock(return_value=target_user)
     mock_session.commit = AsyncMock()
     mock_session.refresh = AsyncMock()
@@ -60,7 +64,7 @@ async def admin_client():
 
     try:
         async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
+            transport=ASGITransport(app=app), base_url="http://test", headers={"X-Forwarded-For": "10.0.0.1"}
         ) as ac:
             yield ac
     finally:
@@ -85,7 +89,7 @@ async def standard_client():
 
     try:
         async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
+            transport=ASGITransport(app=app), base_url="http://test", headers={"X-Forwarded-For": "10.0.0.2"}
         ) as ac:
             yield ac
     finally:
@@ -104,7 +108,7 @@ class TestAdminUsersRouter:
         resp = await admin_client.get("/api/v1/users")
         assert resp.status_code == 200
         data = resp.json()
-        assert "data" in data
+        assert "items" in data
         assert "total" in data
 
     async def test_standard_user_cannot_update_role(self, standard_client):

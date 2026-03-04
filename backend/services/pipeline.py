@@ -62,6 +62,18 @@ celery_app.conf.update(
     broker_connection_retry_on_startup=True,
 )
 
+@worker_process_init.connect
+def init_sentry(**kwargs):
+    if settings.ENVIRONMENT == "production" and settings.SENTRY_DSN:
+        import sentry_sdk
+        from sentry_sdk.integrations.celery import CeleryIntegration
+        sentry_sdk.init(
+            dsn=settings.SENTRY_DSN,
+            environment=settings.ENVIRONMENT,
+            integrations=[CeleryIntegration()],
+            traces_sample_rate=1.0,
+        )
+
 # ── Module-level model cache (loaded once per worker process) ─────────────────
 _models: Dict[str, Any] = {}
 
@@ -229,223 +241,302 @@ def analyse_video(
     t0 = time.perf_counter()
     downloader, frame_extractor, transcriber, classifier, tmdb, spotify, yolo_detector, llm_extractor = _get_services()
 
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-
-    temp_dirs = []
-
-    try:
-        # ── Dedup check ───────────────────────────────────────────────────────
-        if not force_reanalysis:
-            existing_id = _check_existing(video_url)
-            if existing_id:
-                logger.info(f"[{analysis_id}] Returning cached result: {existing_id}")
-                return {"analysis_id": existing_id, "cached": True}
-
-        # ── Step 1: Download ──────────────────────────────────────────────────
-        _update_status(analysis_id, "downloading")
-        logger.info(f"[{analysis_id}] Downloading {video_url}")
-        download_result = loop.run_until_complete(downloader.download(video_url))
-        video_path = download_result.video_path
-        audio_path = download_result.audio_path
-        metadata = download_result.metadata
-        yt_video_id = download_result.video_id
-        if hasattr(download_result, "temp_dir") and download_result.temp_dir:
-            temp_dirs.append(download_result.temp_dir)
-
-        # ── Step 2: Frame extraction ──────────────────────────────────────────
-        _update_status(analysis_id, "extracting_frames")
-        frame_result = loop.run_until_complete(
-            frame_extractor.extract(video_path, yt_video_id)
-        )
-
-        # ── Step 3: Audio transcription ───────────────────────────────────────
-        _update_status(analysis_id, "transcribing")
-        transcription = loop.run_until_complete(
-            transcriber.transcribe(audio_path, language=None)
-        )
-        transcript_text = transcription.full_text
-        transcript_segments = [
-            {
-                "start": s.start,
-                "end": s.end,
-                "text": s.text,
-                "no_speech_prob": s.no_speech_prob,
-            }
-            for s in transcription.segments
-        ]
-
-        # ── Step 3b: Pre-classification OCR ───────────────────────────────────
-        ocr_text_for_classification = ""
+    async def _async_pipeline() -> Dict[str, Any]:
+        temp_dirs = []
+        frames_dir = None
         try:
-            from services.vision.ocr_service import OCRService
-            ocr = OCRService()
-            logger.info(f"[{analysis_id}] Running lightweight pre-classification OCR")
-            ocr_results = loop.run_until_complete(ocr.extract_from_frames(frame_result.frame_paths, max_frames=8))
-            ocr_text_for_classification = ocr.aggregate_text(ocr_results)
-        except Exception as exc:
-            logger.warning(f"[{analysis_id}] Pre-classification OCR failed (non-fatal): {exc}")
+            # ── Dedup check ───────────────────────────────────────────────────────
+            if not force_reanalysis:
+                existing_id = _check_existing(video_url)
+                if existing_id:
+                    logger.info(f"[{analysis_id}] Returning cached result: {existing_id}")
+                    return {"analysis_id": existing_id, "cached": True}
 
-        # ── Step 4: Classification ────────────────────────────────────────────
-        _update_status(analysis_id, "classifying")
-        classification = classifier.predict(
-            frame_paths=frame_result.frame_paths,
-            transcript=transcript_text,
-            title=metadata.get("title", ""),
-            description=metadata.get("description", ""),
-            tags=metadata.get("tags", []),
-            ocr_text=ocr_text_for_classification,
-        )
-        category = classification.predicted_category
-        logger.info(
-            f"[{analysis_id}] Category: {category} "
-            f"(confidence={classification.confidence:.2%})"
-        )
+            # ── Step 1: Download ──────────────────────────────────────────────────
+            _update_status(analysis_id, "downloading")
+            logger.info(f"[{analysis_id}] Downloading {video_url}")
+            download_result = await downloader.download(video_url)
+            video_path = download_result.video_path
+            audio_path = download_result.audio_path
+            metadata = download_result.metadata
+            yt_video_id = download_result.video_id
+            if hasattr(download_result, "temp_dir") and download_result.temp_dir:
+                temp_dirs.append(download_result.temp_dir)
 
-        # ── Step 5: Category-specific extraction ──────────────────────────────
-        _update_status(analysis_id, "extracting_info")
-        
-        # 1. Attempt LLM Extraction first (if available)
-        llm_success = False
-        extraction = {}
-        
-        if llm_extractor.is_available():
-            logger.info(f"[{analysis_id}] Proceeding with LlmExtractor (llama.cpp)")
+            # ── Step 2: Frame extraction ──────────────────────────────────────────
+            _update_status(analysis_id, "extracting_frames")
+            frame_result = await frame_extractor.extract(video_path, yt_video_id)
+            if hasattr(frame_result, "temp_dir") and frame_result.temp_dir:
+                frames_dir = frame_result.temp_dir
+            elif frame_result.frame_paths:
+                frames_dir = str(Path(frame_result.frame_paths[0]).parent)
+
+            # ── Step 3: Audio transcription ───────────────────────────────────────
+            _update_status(analysis_id, "transcribing")
+            transcription = await transcriber.transcribe_with_translation(audio_path, language=None)
+            transcript_original = transcription.full_text
+            transcript_text = transcription.full_text_english if transcription.was_translated else transcript_original
+            
+            transcript_segments = [
+                {
+                    "start": s.start,
+                    "end": s.end,
+                    "text": s.text,
+                    "no_speech_prob": s.no_speech_prob,
+                }
+                for s in (transcription.segments_english if transcription.was_translated else transcription.segments)
+            ]
+
+            # ── Step 4: Full-Frame OCR ────────────────────────────────────────────
+            ocr_text_for_classification = ""
+            video_ocr_result = None
             try:
-                extraction = llm_extractor.extract(
-                    category=category,
-                    transcript=transcript_text,
-                    metadata=metadata,
-                    ocr_text=ocr_text_for_classification
-                )
-                if extraction.get("type") != "error":
-                    llm_success = True
-                else:
-                    logger.warning(f"[{analysis_id}] LLM Extractor failed: {extraction.get('message')}")
-            except Exception as e:
-                logger.warning(f"[{analysis_id}] LlmExtractor exception: {e}")
-                
-        # 2. Fall back to heuristic regex extraction if LLM is unavailable or crashes
-        if not llm_success:
-            logger.info(f"[{analysis_id}] Proceeding with heuristic fallback extractors")
-            extractor = get_extractor(category)
-
-            if category == "shopping" and isinstance(extractor, ShoppingExtractor) and yolo_detector is not None:
-                logger.info(f"[{analysis_id}] Running YOLO detection ({len(frame_result.frame_paths)} frames)")
-                yolo_detections = loop.run_until_complete(yolo_detector.detect(frame_result.frame_paths))
-                extractor.detections = yolo_detections
-                logger.info(f"[{analysis_id}] YOLO found {len(yolo_detections)} object(s)")
-
-            extraction = extractor.extract(
-                transcript_text=transcript_text,
-                segments=transcript_segments,
-                metadata=metadata,
-                frame_paths=frame_result.frame_paths,
-            )
-
-            # Only heuristic extractors need a second pass at OCR because 
-            # the LlmExtractor prompt already consumed 'ocr_text_for_classification'
-            if category in ["listicle", "educational", "shopping", "unknown"]:
                 from services.vision.ocr_service import OCRService
                 ocr = OCRService()
-                logger.info(f"[{analysis_id}] Running OCR on frames")
-                ocr_results = loop.run_until_complete(ocr.extract_from_frames(frame_result.frame_paths))
-                ocr_aggregated = ocr.aggregate_text(ocr_results)
-                extraction["on_screen_text"] = ocr_aggregated
+                logger.info(f"[{analysis_id}] Running full-frame OCR (audio_language={transcription.language})")
+                video_ocr_result = await ocr.extract_from_frames(
+                    frame_result.frame_paths, 
+                    audio_language=transcription.language
+                )
+                if video_ocr_result:
+                    ocr_text_for_classification = video_ocr_result.aggregated_text
+            except Exception as exc:
+                logger.warning(f"[{analysis_id}] OCR failed (non-fatal): {exc}")
 
-                if category == "listicle" and ocr_aggregated:
-                    logger.info(f"[{analysis_id}] Re-running listicle extraction with combined OCR text")
-                    combined_text = transcript_text + "\n" + ocr_aggregated
-                    extraction = extractor.extract(
-                        transcript_text=combined_text,
-                        segments=transcript_segments,
+            # ── Step 5: Classification ────────────────────────────────────────────
+            _update_status(analysis_id, "classifying")
+            classification = classifier.predict(
+                frame_paths=frame_result.frame_paths,
+                transcript=transcript_text,
+                title=metadata.get("title", ""),
+                description=metadata.get("description", ""),
+                tags=metadata.get("tags", []),
+                ocr_text=ocr_text_for_classification,
+            )
+            category = classification.predicted_category
+            logger.info(
+                f"[{analysis_id}] Category: {category} "
+                f"(confidence={classification.confidence:.2%})"
+            )
+
+            # ── Step 6: Category-specific extraction ──────────────────────────────
+            _update_status(analysis_id, "extracting_info")
+            
+            # 1. Attempt LLM Extraction first (if available)
+            llm_success = False
+            extraction = {}
+            
+            if llm_extractor.is_available():
+                logger.info(f"[{analysis_id}] Proceeding with LlmExtractor (llama.cpp)")
+                try:
+                    extraction = await asyncio.to_thread(
+                        llm_extractor.extract,
+                        category=category,
+                        transcript=transcript_text,
                         metadata=metadata,
-                        frame_paths=frame_result.frame_paths,
+                        ocr_text=ocr_text_for_classification
                     )
-                    extraction["on_screen_text"] = ocr_aggregated
+                    if extraction.get("type") != "error":
+                        llm_success = True
+                    else:
+                        logger.warning(f"[{analysis_id}] LLM Extractor failed: {extraction.get('message')}")
+                except Exception as e:
+                    logger.warning(f"[{analysis_id}] LlmExtractor exception: {e}")
+                    
+            # 2. Fall back to heuristic regex extraction if LLM is unavailable or crashes
+            if not llm_success:
+                logger.info(f"[{analysis_id}] Proceeding with heuristic fallback extractors")
+                extractor = get_extractor(category)
 
-        # ── Step 6: External API enrichment ───────────────────────────────────
-        _update_status(analysis_id, "enriching")
+                if category == "shopping" and isinstance(extractor, ShoppingExtractor) and yolo_detector is not None:
+                    logger.info(f"[{analysis_id}] Running YOLO detection ({len(frame_result.frame_paths)} frames)")
+                    yolo_detections = await yolo_detector.detect(frame_result.frame_paths)
+                    extractor.detections = yolo_detections
+                    logger.info(f"[{analysis_id}] YOLO found {len(yolo_detections)} object(s)")
 
-        if category == "listicle" and tmdb.is_available():
-            items = extraction.get("items", [])
-            enriched_items = loop.run_until_complete(tmdb.enrich_list_items(items))
-            extraction["items"] = enriched_items
+                ocr_frames = video_ocr_result.frames if video_ocr_result else []
+                extraction = await asyncio.to_thread(
+                    extractor.extract,
+                    transcript_text=transcript_text,
+                    segments=transcript_segments,
+                    metadata=metadata,
+                    frame_paths=frame_result.frame_paths,
+                    frame_ocr_results=ocr_frames,
+                )
 
-        if category == "music" and spotify.is_available():
-            tracks = extraction.get("tracks", [])
-            search_results = loop.run_until_complete(
-                asyncio.gather(
-                    *[spotify.search_track(t.get("title", ""), t.get("artist", ""))
+            # ── Step 7: External API enrichment ───────────────────────────────────
+            _update_status(analysis_id, "enriching")
+
+            if category == "listicle":
+                items = extraction.get("items", [])
+                is_book_list = extraction.get("is_book_list", False)
+                if is_book_list:
+                    # ── Google Books enrichment ────────────────────────────────
+                    from services.integration.google_books_service import GoogleBooksService
+                    books_svc = GoogleBooksService()
+                    async def _enrich_book(item):
+                        if not item.get("title"):
+                            return item
+                        book = await books_svc.search_book(item["title"])
+                        if book:
+                            import dataclasses
+                            item.update(dataclasses.asdict(book))
+                            item.pop("found", None)
+                        return item
+                    enriched_items = await asyncio.gather(*[_enrich_book(i) for i in items], return_exceptions=False)
+                    extraction["items"] = list(enriched_items)
+                elif tmdb.is_available():
+                    enriched_items = await tmdb.enrich_list_items(items)
+                    extraction["items"] = enriched_items
+
+            if category == "music" and spotify.is_available():
+                tracks = extraction.get("tracks", [])
+                search_results = await asyncio.gather(
+                    *[spotify.search_track(
+                        t.get("title", ""), 
+                        t.get("artist", ""), 
+                        ocr_raw=t.get("title", "") if t.get("source") == "ocr" else None
+                      )
                       for t in tracks],
                     return_exceptions=True,
                 )
+                
+                track_dicts_for_playlist = []
+                for track, sp_result in zip(tracks, search_results):
+                    if sp_result and not isinstance(sp_result, Exception):
+                        track["spotify"] = {
+                            "spotify_id": sp_result.spotify_id,
+                            "uri": sp_result.uri,
+                            "spotify_url": sp_result.spotify_url,
+                            "preview_url": sp_result.preview_url,
+                            "found": True,
+                            "match_confidence": sp_result.match_confidence,
+                        }
+                        track_dicts_for_playlist.append({
+                            "title": track.get("title", ""),
+                            "artist": track.get("artist", ""),
+                            "uri": sp_result.uri
+                        })
+                    else:
+                        track["spotify"] = {"found": False}
+                
+                # Check for playlist auto-creation
+                extraction["pending_playlist_tracks"] = True
+                extraction["spotify_playlist_url"] = None
+                
+                if len(track_dicts_for_playlist) >= 3:
+                    try:
+                        with get_sync_db() as session:
+                            from db.models import Analysis
+                            analysis = session.query(Analysis).filter(Analysis.id == analysis_id).first()
+                            
+                            if analysis and analysis.user and analysis.user.spotify_access_token:
+                                user = analysis.user
+                                playlist_name = metadata.get("title", "YouTube Extracted Playlist")[:100]
+                                logger.info(f"[{analysis_id}] Auto-creating playlist due to linked Spotify account")
+                                
+                                user_spotify_id = await spotify.get_current_user_id(user.spotify_access_token)
+                                pl_result = await spotify.create_playlist(
+                                    user.spotify_access_token, 
+                                    user_spotify_id, 
+                                    playlist_name, 
+                                    track_dicts_for_playlist
+                                )
+                                extraction["spotify_playlist_url"] = pl_result.playlist_url
+                                extraction["pending_playlist_tracks"] = False
+                    except Exception as exc:
+                        logger.warning(f"[{analysis_id}] Failed to auto-create playlist: {exc}")
+
+            # ── Step 8: Assemble result ───────────────────────────────────────────
+            processing_secs = round(time.perf_counter() - t0, 2)
+            
+            # Serialize frames cleanly for MongoDB
+            def _frame_path_to_url(frame_path: str, video_id: str) -> str:
+                filename = Path(frame_path).name
+                base = settings.PUBLIC_BASE_URL.rstrip("/")
+                return f"{base}/frames/{video_id}/{filename}"
+                
+            serialized_frames = []
+            if video_ocr_result and video_ocr_result.frames:
+                from dataclasses import asdict
+                for f in video_ocr_result.frames:
+                    # Drop full file paths to save MongoDB space; keep basename relative to task
+                    f_dict = asdict(f)
+                    f_dict["frame_path"] = os.path.basename(f.frame_path)
+                    f_dict["frame_url"] = _frame_path_to_url(f.frame_path, yt_video_id)
+                    serialized_frames.append(f_dict)
+                    
+            ocr_summary = {
+                "total_frames": video_ocr_result.total_frames_processed if video_ocr_result else 0,
+                "frames_with_text": video_ocr_result.frames_with_text if video_ocr_result else 0,
+                "aggregated_text": ocr_text_for_classification,
+            }
+
+            result = {
+                "analysis_id": analysis_id,
+                "video": {
+                    **metadata,
+                    "language": transcription.language,
+                },
+                "classification": {
+                    "predicted_category": category,
+                    "confidence": classification.confidence,
+                    "all_scores": classification.all_scores,
+                    "modality_breakdown": classification.modality_breakdown,
+                },
+                "transcription": {
+                    "full_text": transcript_original,
+                    "full_text_english": transcription.full_text_english if transcription.was_translated else None,
+                    "language": transcription.language,
+                    "language_probability": transcription.language_probability,
+                    "was_translated": transcription.was_translated,
+                    "word_count": transcription.word_count,
+                    "segments": transcript_segments,
+                },
+                "ocr_summary": ocr_summary,
+                "frames": serialized_frames,
+                "output": extraction,
+                "processing_time_secs": processing_secs,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+
+            # ── Training data collection ──────────────────────────────────────────────
+            await asyncio.to_thread(
+                _save_training_sample,
+                analysis_id=analysis_id,
+                metadata=metadata,
+                transcript_text=transcript_text,
+                ocr_text=ocr_text_for_classification,
+                category=category,
+                confidence=classification.confidence,
+                extraction=extraction,
             )
-            for track, sp_result in zip(tracks, search_results):
-                if sp_result and not isinstance(sp_result, Exception):
-                    track["spotify"] = {
-                        "spotify_id": sp_result.spotify_id,
-                        "uri": sp_result.uri,
-                        "spotify_url": sp_result.spotify_url,
-                        "preview_url": sp_result.preview_url,
-                        "found": True,
-                    }
-                else:
-                    track["spotify"] = {"found": False}
 
-        # ── Step 7: Assemble result ───────────────────────────────────────────
-        processing_secs = round(time.perf_counter() - t0, 2)
-        result = {
-            "analysis_id": analysis_id,
-            "video": {
-                **metadata,
-                "language": transcription.language,
-            },
-            "classification": {
-                "predicted_category": category,
-                "confidence": classification.confidence,
-                "all_scores": classification.all_scores,
-                "modality_breakdown": classification.modality_breakdown,
-            },
-            "transcription": {
-                "full_text": transcript_text,
-                "language": transcription.language,
-                "language_probability": transcription.language_probability,
-                "word_count": transcription.word_count,
-                "segments": transcript_segments,
-            },
-            "output": extraction,
-            "processing_time_secs": processing_secs,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        }
+            # ── Step 9: Persist to MongoDB ────────────────────────────────────────
+            mongo_ok = await asyncio.to_thread(_persist_to_mongo, analysis_id, result)
+            if not mongo_ok:
+                _update_status(
+                    analysis_id, "failed",
+                    error="Analysis completed but result could not be saved to MongoDB. "
+                          "Check that MongoDB is running."
+                )
+                return {**result, "mongo_save_failed": True}
 
-        # ── Training data collection ──────────────────────────────────────────────
-        _save_training_sample(
-            analysis_id=analysis_id,
-            metadata=metadata,
-            transcript_text=transcript_text,
-            ocr_text=ocr_text_for_classification,
-            category=category,
-            confidence=classification.confidence,
-            extraction=extraction,
-        )
+            _update_status(analysis_id, "complete")
+            logger.info(f"[{analysis_id}] Analysis complete in {processing_secs}s")
+            ytclfr_analyses_total.labels(status="success", category=category).inc()
+            ytclfr_analysis_duration_seconds.observe(processing_secs)
+            return result
 
-        # ── Step 8: Persist to MongoDB ────────────────────────────────────────
-        mongo_ok = _persist_to_mongo(analysis_id, result)
-        if not mongo_ok:
-            _update_status(
-                analysis_id, "failed",
-                error="Analysis completed but result could not be saved to MongoDB. "
-                      "Check that MongoDB is running."
-            )
-            return {**result, "mongo_save_failed": True}
+        finally:
+            # Always clean up temp dirs regardless of success/failure
+            for temp_dir in temp_dirs:
+                if frames_dir and temp_dir == frames_dir and settings.KEEP_FRAMES_AFTER_ANALYSIS:
+                    continue  # Keep the frames dir
+                shutil.rmtree(temp_dir, ignore_errors=True)
 
-        _update_status(analysis_id, "complete")
-        logger.info(f"[{analysis_id}] Analysis complete in {processing_secs}s")
-        ytclfr_analyses_total.labels(status="success", category=category).inc()
-        ytclfr_analysis_duration_seconds.observe(processing_secs)
-        return result
-
+    try:
+        return asyncio.run(_async_pipeline())
     except SoftTimeLimitExceeded:
         logger.error(f"[{analysis_id}] Soft time limit exceeded")
         _update_status(analysis_id, "failed", error="Task timed out (soft limit)")
@@ -456,11 +547,6 @@ def analyse_video(
         _update_status(analysis_id, "failed", error=str(exc))
         ytclfr_analyses_total.labels(status="failed", category="unknown").inc()
         raise
-    finally:
-        # Always clean up temp dirs regardless of success/failure
-        for temp_dir in temp_dirs:
-            shutil.rmtree(temp_dir, ignore_errors=True)
-        loop.close()
 
 
 def _save_training_sample(

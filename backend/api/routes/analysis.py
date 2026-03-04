@@ -32,6 +32,7 @@ from models.schemas import (
     SpotifyPlaylistRequest,
     SpotifyPlaylistResponse,
 )
+from api.routes.auth import get_current_user_optional
 from services.video_processor.downloader import extract_video_id
 # NOTE: services.pipeline is imported lazily inside submit_analysis to avoid
 # loading heavy ML libraries (torch, ultralytics, faster-whisper) at module
@@ -69,6 +70,7 @@ async def submit_analysis(
     body: AnalysisRequest,
     db: AsyncSession = Depends(get_db_session),
     redis=Depends(get_redis),
+    user=Depends(get_current_user_optional),
 ):
     """
     Submit a YouTube URL for analysis.
@@ -100,7 +102,11 @@ async def submit_analysis(
         await db.flush()
 
     # ── Create Analysis job row ───────────────────────────────────────────────
-    analysis = Analysis(video_id=video.id, status=JobStatus.QUEUED)
+    analysis = Analysis(
+        video_id=video.id, 
+        status=JobStatus.QUEUED,
+        user_id=user.id if user else None
+    )
     db.add(analysis)
     await db.flush()
     analysis_id = str(analysis.id)
@@ -136,6 +142,7 @@ async def submit_batch(
     body: BatchAnalysisRequest,
     db: AsyncSession = Depends(get_db_session),
     redis=Depends(get_redis),
+    user=Depends(get_current_user_optional),
 ):
     """
     Submit up to 10 videos at once. Returns a list of job statuses.
@@ -147,6 +154,7 @@ async def submit_batch(
                 AnalysisRequest(url=url, force_reanalysis=body.force_reanalysis),
                 db=db,
                 redis=redis,
+                user=user,
             )
             results.append(job)
         except HTTPException as exc:
@@ -204,6 +212,46 @@ async def get_result(
 
     doc["_id"] = str(doc["_id"])
     return doc
+
+
+@router.get("/{analysis_id}/frames")
+async def get_frames(
+    analysis_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db_session),
+):
+    """
+    Retrieve frames from a completed analysis.
+    Filters exclusively for frames that contain structural text content or YOLO detected objects.
+    """
+    analysis = await _get_analysis_or_404(analysis_id, db)
+
+    if analysis.status != JobStatus.COMPLETE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Analysis not yet complete. Current status: {analysis.status.value}",
+        )
+    if not analysis.mongo_result_id:
+        raise HTTPException(status_code=500, detail="Result reference missing")
+
+    mongo_db = get_mongo_db()
+    from bson import ObjectId
+    doc = await mongo_db["analysis_results"].find_one(
+        {"_id": ObjectId(analysis.mongo_result_id)},
+        {"video": 1, "frames": 1}
+    )
+    if not doc:
+        raise HTTPException(status_code=404, detail="Result document not found in store")
+
+    all_frames = doc.get("frames", [])
+    filtered_frames = [
+        f for f in all_frames 
+        if f.get("has_content", False) or f.get("yolo_detections", [])
+    ]
+
+    return {
+        "video_id": doc.get("video", {}).get("youtube_id", "unknown"),
+        "frames": filtered_frames,
+    }
 
 
 @router.get("/", response_model=PaginatedResponse)

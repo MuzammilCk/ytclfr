@@ -596,17 +596,48 @@ function ClassificationScores({ allScores, modalityBreakdown }) {
 
 function TranscriptPanel({ transcription }) {
   const [expanded, setExpanded] = useState(false);
+  const [showEnglish, setShowEnglish] = useState(true);
+
   if (!transcription?.full_text) return null;
 
-  const preview = transcription.full_text.slice(0, 600);
+  const displayText = (showEnglish && transcription.was_translated && transcription.full_text_english)
+    ? transcription.full_text_english
+    : transcription.full_text;
+
+  const preview = displayText.slice(0, 600);
 
   return (
     <Card style={{ marginBottom: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
         <h3 style={{ fontWeight: 700 }}>Transcript</h3>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {transcription.was_translated && (
+            <Tag
+              label={showEnglish ? "Language: ENGLISH (Translated)" : `Language: ${transcription.language?.toUpperCase()} (Original)`}
+              color="var(--accent)"
+            />
+          )}
+          {!transcription.was_translated && (
+            <Tag label={transcription.language?.toUpperCase()} color="var(--accent2)" />
+          )}
           <Tag label={`${transcription.word_count?.toLocaleString() || 0} words`} />
-          <Tag label={transcription.language?.toUpperCase()} color="var(--accent2)" />
+          {transcription.was_translated && (
+            <button
+              onClick={() => setShowEnglish(!showEnglish)}
+              style={{
+                background: "var(--surface2)",
+                border: "1px solid var(--border)",
+                color: "var(--text)",
+                padding: "2px 8px",
+                borderRadius: 4,
+                cursor: "pointer",
+                fontSize: 11,
+                fontFamily: "'Space Mono', monospace"
+              }}
+            >
+              {showEnglish ? "Show Original" : "Show English"}
+            </button>
+          )}
         </div>
       </div>
 
@@ -619,8 +650,8 @@ function TranscriptPanel({ transcription }) {
         overflow: "hidden",
         position: "relative",
       }}>
-        {expanded ? transcription.full_text : preview + (transcription.full_text.length > 600 ? "…" : "")}
-        {!expanded && transcription.full_text.length > 600 && (
+        {expanded ? displayText : preview + (displayText.length > 600 ? "…" : "")}
+        {!expanded && displayText.length > 600 && (
           <div style={{
             position: "absolute", bottom: 0, left: 0, right: 0, height: 40,
             background: "linear-gradient(transparent, var(--surface))",
@@ -628,7 +659,7 @@ function TranscriptPanel({ transcription }) {
         )}
       </div>
 
-      {transcription.full_text.length > 600 && (
+      {displayText.length > 600 && (
         <button onClick={() => setExpanded(!expanded)} style={{
           marginTop: 10, background: "none", border: "none",
           color: "var(--accent)", cursor: "pointer", fontSize: 13,
@@ -641,16 +672,199 @@ function TranscriptPanel({ transcription }) {
   );
 }
 
+// ── Frame Timeline & Modal ─────────────────────────────────────────────────
+
+function FrameModal({ frame, onClose }) {
+  if (!frame) return null;
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 1100,
+      display: "flex", alignItems: "center", justifyContent: "center",
+      background: "rgba(8,8,15,0.9)", backdropFilter: "blur(12px)",
+    }} onClick={onClose}>
+      <div style={{
+        background: "var(--surface)", border: "1px solid var(--border)",
+        borderRadius: "var(--radius-lg)", padding: 24, width: "90vw", maxWidth: 1000,
+        maxHeight: "90vh", overflowY: "auto",
+        boxShadow: "0 0 80px rgba(0,0,0,0.8)",
+        animation: "fadeUp 0.3s ease",
+      }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+          <h3 style={{ fontWeight: 800 }}>Frame Analysis @ {formatDuration(frame.timestamp_secs)}</h3>
+          <button onClick={onClose} style={{
+            background: "var(--surface2)", border: "none", color: "var(--text)",
+            width: 32, height: 32, borderRadius: 16, cursor: "pointer",
+          }}>✕</button>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 24 }}>
+          {/* Image */}
+          <div>
+            <img
+              src={frame.frame_url}
+              alt="Frame"
+              style={{ width: "100%", borderRadius: "var(--radius)", border: "1px solid var(--border)", backgroundColor: "var(--surface2)" }}
+              onError={(e) => {
+                e.target.style.display = 'none';
+                e.target.nextSibling.style.display = 'flex';
+              }}
+            />
+            <div style={{
+              display: "none", alignItems: "center", justifyContent: "center",
+              width: "100%", aspectRatio: "16/9", background: "var(--surface2)",
+              borderRadius: "var(--radius)", border: "1px solid var(--border)",
+              color: "var(--muted)", fontFamily: "'Space Mono', monospace", fontSize: 13
+            }}>
+              Image moved to cold storage
+            </div>
+          </div>
+
+          {/* Metadata */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+            <div>
+              <h4 style={{ fontWeight: 700, fontSize: 14, marginBottom: 8, color: "var(--muted)", textTransform: "uppercase" }}>OCR Content</h4>
+              <div style={{
+                background: "var(--surface2)", padding: 16, borderRadius: "var(--radius)",
+                fontFamily: "'Space Mono', monospace", fontSize: 13, lineHeight: 1.6,
+                color: frame.ocr_text ? "var(--text)" : "var(--muted)",
+                whiteSpace: "pre-wrap", maxHeight: 300, overflowY: "auto"
+              }}>
+                {frame.ocr_text || "No text detected in this frame."}
+              </div>
+            </div>
+
+            {frame.yolo_detections?.length > 0 && (
+              <div>
+                <h4 style={{ fontWeight: 700, fontSize: 14, marginBottom: 8, color: "var(--muted)", textTransform: "uppercase" }}>Vision Detections (YOLO)</h4>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {frame.yolo_detections.map((d, i) => (
+                    <div key={i} style={{
+                      background: "rgba(99,202,183,0.15)", border: "1px solid rgba(99,202,183,0.3)",
+                      padding: "4px 10px", borderRadius: 20, display: "flex", gap: 6, alignItems: "center"
+                    }}>
+                      <span style={{ color: "var(--success)", fontWeight: 600, fontSize: 13 }}>{d.label}</span>
+                      <span style={{ color: "var(--muted)", fontFamily: "'Space Mono', monospace", fontSize: 11 }}>{Math.round(d.confidence * 100)}%</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FrameTimeline({ frames }) {
+  const [selectedFrame, setSelectedFrame] = useState(null);
+
+  if (!frames || frames.length === 0) return null;
+
+  // Only show frames that have content (OCR or YOLO). 
+  // We assume the backend already filtered them, but just in case.
+  const contentFrames = frames.filter(f => f.has_content || f.yolo_detections?.length > 0);
+
+  return (
+    <div style={{ animation: "fadeUp 0.5s ease" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <h3 style={{ fontWeight: 700 }}>Extraction Timeline</h3>
+        <Tag label={`${contentFrames.length} meaningful frames`} color="var(--accent)" />
+      </div>
+
+      <div style={{
+        display: "flex", overflowX: "auto", gap: 16, paddingBottom: 20,
+        scrollbarWidth: "thin", scrollbarColor: "var(--accent) var(--surface)",
+      }}>
+        {contentFrames.map((frame, i) => (
+          <div
+            key={i}
+            onClick={() => setSelectedFrame(frame)}
+            style={{
+              width: 140, flexShrink: 0, cursor: "pointer",
+              transition: "transform 0.2s",
+            }}
+            onMouseEnter={e => e.currentTarget.style.transform = "translateY(-4px)"}
+            onMouseLeave={e => e.currentTarget.style.transform = "translateY(0)"}
+          >
+            {/* Thumbnail */}
+            <div style={{
+              width: "100%", aspectRatio: "16/9", background: "var(--surface2)",
+              borderRadius: "var(--radius)", border: "1px solid var(--border)",
+              overflow: "hidden", marginBottom: 8, position: "relative"
+            }}>
+              <img
+                src={frame.frame_url}
+                alt="Frame thumbnail"
+                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                  e.target.nextSibling.style.display = 'flex';
+                }}
+              />
+              <div style={{
+                display: "none", alignItems: "center", justifyContent: "center",
+                width: "100%", height: "100%", color: "var(--muted)",
+                fontFamily: "'Space Mono', monospace", fontSize: 10
+              }}>
+                Expired
+              </div>
+              <div style={{
+                position: "absolute", bottom: 4, right: 4,
+                background: "rgba(0,0,0,0.8)", color: "white", padding: "2px 6px",
+                borderRadius: 4, fontFamily: "'Space Mono', monospace", fontSize: 10
+              }}>
+                {formatDuration(frame.timestamp_secs)}
+              </div>
+            </div>
+
+            {/* OCR snippet */}
+            {frame.ocr_text && (
+              <div style={{
+                fontSize: 11, color: "var(--muted)", fontFamily: "'Space Mono', monospace",
+                lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical",
+                overflow: "hidden"
+              }}>
+                {frame.ocr_text}
+              </div>
+            )}
+
+            {/* YOLO icons */}
+            {frame.yolo_detections?.length > 0 && (
+              <div style={{ display: "flex", gap: 4, marginTop: 6, flexWrap: "wrap" }}>
+                <span style={{
+                  background: "var(--surface2)", color: "var(--success)",
+                  fontSize: 10, padding: "2px 6px", borderRadius: 4,
+                  border: "1px solid rgba(99,202,183,0.3)"
+                }}>
+                  {frame.yolo_detections.length} objects
+                </span>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <FrameModal frame={selectedFrame} onClose={() => setSelectedFrame(null)} />
+    </div>
+  );
+}
+
 // ── Listicle Output ────────────────────────────────────────────────────────
 
 function ListicleOutput({ output }) {
   const items = output?.items || [];
+  const isBookList = output?.is_book_list;
 
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <h3 style={{ fontWeight: 800, fontSize: 18 }}>{output?.list_title}</h3>
-        <Tag label={`${items.length} items`} />
+        <div style={{ display: "flex", gap: 8 }}>
+          <Tag label={`${items.length} items`} />
+          {isBookList && <Tag label="📚 Book List" color="var(--success)" />}
+        </div>
       </div>
 
       <div style={{ display: "grid", gap: 12 }}>
@@ -658,40 +872,121 @@ function ListicleOutput({ output }) {
           <Card key={i} style={{ padding: 16, display: "flex", gap: 16 }}>
             <div style={{
               width: 48, height: 48, borderRadius: "var(--radius)", flexShrink: 0,
-              background: "linear-gradient(135deg, var(--accent2), var(--accent))",
+              background: isBookList
+                ? "linear-gradient(135deg, #f59e0b, #d97706)"
+                : "linear-gradient(135deg, var(--accent2), var(--accent))",
               display: "flex", alignItems: "center", justifyContent: "center",
               fontWeight: 800, fontSize: 18, color: "white",
             }}>
               {item.rank}
             </div>
 
-            {item.poster_url && (
+            {item.poster_url && !isBookList && (
               <img
                 src={item.poster_url}
                 alt={item.title}
                 style={{ width: 40, height: 60, objectFit: "cover", borderRadius: 6, flexShrink: 0 }}
               />
             )}
+            {item.thumbnail && isBookList && (
+              <img
+                src={item.thumbnail}
+                alt={item.title}
+                style={{ width: 40, height: 56, objectFit: "cover", borderRadius: 6, flexShrink: 0 }}
+              />
+            )}
 
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontWeight: 700, marginBottom: 4 }}>{item.title}</div>
-              {item.year && <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 6 }}>{item.year}</div>}
-              {item.description && (
-                <div style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.5, marginBottom: 8 }}>
-                  {item.description.slice(0, 120)}{item.description.length > 120 ? "…" : ""}
+
+              {/* Book-specific: authors + publication date */}
+              {isBookList && item.authors?.length > 0 && (
+                <div style={{ fontSize: 13, color: "var(--accent3)", marginBottom: 4 }}>
+                  by {item.authors.join(", ")}
                 </div>
               )}
+              {isBookList && item.published_date && (
+                <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 4, fontFamily: "'Space Mono', monospace" }}>
+                  {item.published_date}{item.page_count ? ` · ${item.page_count} pages` : ""}
+                </div>
+              )}
+
+              {/* Movie/TV: year */}
+              {!isBookList && item.year && <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 6 }}>{item.year}</div>}
+
+              {item.description && (
+                <div style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.5, marginBottom: 8 }}>
+                  {item.description.slice(0, 120)}{item.description.length > 120 ? "\u2026" : ""}
+                </div>
+              )}
+
+              {/* Provenance timestamp */}
+              {item.timestamp_secs != null && (
+                <div style={{ fontSize: 11, color: "var(--muted)", fontFamily: "'Space Mono', monospace", marginBottom: 6 }}>
+                  🎬 found at {formatDuration(Math.round(item.timestamp_secs))} via {item.source || "OCR"}
+                </div>
+              )}
+
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {item.tmdb_rating && (
-                  <Tag label={`⭐ ${item.tmdb_rating}`} color="var(--accent3)" />
+                {/* Book links */}
+                {isBookList && (
+                  <>
+                    {item.isbn && <Tag label={`ISBN ${item.isbn}`} color="var(--border)" />}
+                    {item.goodreads_url && (
+                      <a href={item.goodreads_url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--success)", fontSize: 12, textDecoration: "none" }}>
+                        Goodreads ↗
+                      </a>
+                    )}
+                    {item.amazon_url && (
+                      <a href={item.amazon_url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent3)", fontSize: 12, textDecoration: "none", marginLeft: 8 }}>
+                        Amazon ↗
+                      </a>
+                    )}
+                    {item.google_books_url && (
+                      <a href={item.google_books_url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)", fontSize: 12, textDecoration: "none", marginLeft: 8 }}>
+                        Google Books ↗
+                      </a>
+                    )}
+                  </>
                 )}
-                {item.streaming?.flatrate?.slice(0, 3).map(p => (
-                  <Tag key={p} label={p} color="var(--success)" />
-                ))}
-                {item.imdb_url && (
-                  <a href={item.imdb_url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)", fontSize: 12, textDecoration: "none" }}>
-                    IMDb →
-                  </a>
+
+                {/* Movie/TV links */}
+                {!isBookList && (
+                  <>
+                    {item.tmdb_rating && (
+                      <Tag label={`⭐ ${item.tmdb_rating}`} color="var(--accent3)" />
+                    )}
+                    {/* Streaming Availability Badges */}
+                    {item.streaming?.flatrate?.length > 0 ? (
+                      item.streaming.flatrate.slice(0, 4).map(p => {
+                        const ln = p.toLowerCase();
+                        let color = "var(--success)";
+                        if (ln.includes("netflix")) color = "#E50914";
+                        else if (ln.includes("prime") || ln.includes("amazon")) color = "#00A8E1";
+                        else if (ln.includes("disney")) color = "#113CCF";
+                        else if (ln.includes("hulu")) color = "#1CE783";
+                        else if (ln.includes("max") || ln.includes("hbo")) color = "#5A2E98";
+                        else if (ln.includes("apple")) color = "#555555";
+
+                        return <Tag key={p} label={p} color={color} />;
+                      })
+                    ) : (
+                      <>
+                        {item.streaming?.rent?.length > 0 && (
+                          <Tag label={`Rent (${item.streaming.rent.length})`} color="var(--border)" textColor="var(--muted)" />
+                        )}
+                        {item.streaming?.buy?.length > 0 && (
+                          <Tag label={`Buy (${item.streaming.buy.length})`} color="var(--border)" textColor="var(--muted)" />
+                        )}
+                      </>
+                    )}
+
+                    {item.imdb_url && (
+                      <a href={item.imdb_url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)", fontSize: 12, textDecoration: "none", marginLeft: "auto" }}>
+                        IMDb ↗
+                      </a>
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -715,61 +1010,87 @@ function MusicOutput({ output }) {
           <Tag label={`${tracks.length} tracks`} color="var(--accent2)" />
           {output?.spotify_playlist_url && (
             <a href={output.spotify_playlist_url} target="_blank" rel="noopener noreferrer">
-              <Tag label="Open Spotify Playlist" color="var(--success)" />
+              <Tag label="🎵 Spotify Playlist Ready" color="var(--success)" />
             </a>
+          )}
+          {output?.pending_playlist_tracks && (
+            <Tag label="🎵 Ready to Create Playlist (Link Spotify)" color="var(--accent)" />
           )}
         </div>
       </div>
 
       <div style={{ display: "grid", gap: 8 }}>
-        {tracks.map((track, i) => (
-          <div key={i} style={{
-            display: "flex", alignItems: "center", gap: 16,
-            padding: "12px 16px",
-            background: "var(--surface)",
-            border: "1px solid var(--border)",
-            borderRadius: "var(--radius)",
-            transition: "border-color 0.2s",
-          }}>
-            <div style={{
-              width: 32, height: 32, borderRadius: "50%",
-              background: `hsl(${(i * 47) % 360}, 70%, 50%)`,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 13, color: "white", fontWeight: 700, flexShrink: 0,
+        {tracks.map((track, i) => {
+          let badgeLabel = "";
+          let badgeColor = "var(--muted)";
+          if (track.spotify?.found) {
+            if (track.spotify.match_confidence === "exact") {
+              badgeLabel = "Exact Match";
+              badgeColor = "var(--success)";
+            } else {
+              badgeLabel = "Fuzzy Match";
+              badgeColor = "#f59e0b"; // warning color
+            }
+          } else {
+            badgeLabel = "Not Found";
+            badgeColor = "var(--danger)";
+          }
+
+          return (
+            <div key={i} style={{
+              display: "flex", alignItems: "center", gap: 16,
+              padding: "12px 16px",
+              background: "var(--surface)",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius)",
+              transition: "border-color 0.2s",
             }}>
-              {track.rank || i + 1}
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 600, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {track.title}
+              <div style={{
+                width: 32, height: 32, borderRadius: "50%",
+                background: `hsl(${(i * 47) % 360}, 70%, 50%)`,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 13, color: "white", fontWeight: 700, flexShrink: 0,
+              }}>
+                {track.rank || i + 1}
               </div>
-              <div style={{ fontSize: 12, color: "var(--muted)" }}>
-                {track.artist} {track.year ? `· ${track.year}` : ""}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {track.title}
+                </div>
+                <div style={{ fontSize: 12, color: "var(--muted)", display: "flex", gap: "8px", alignItems: "center", marginTop: "4px", flexWrap: "wrap" }}>
+                  <span>{track.artist} {track.year ? `· ${track.year}` : ""}</span>
+                  <Tag label={badgeLabel} color={badgeColor} />
+                  {track.timestamp_secs != null && (
+                    <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 11, color: "var(--muted)" }}>
+                      🎬 {formatDuration(Math.round(track.timestamp_secs))}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                {track.spotify?.found && (
+                  <a
+                    href={track.spotify.spotify_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      padding: "4px 12px", borderRadius: 20,
+                      background: "rgba(29,185,84,0.15)",
+                      border: "1px solid rgba(29,185,84,0.3)",
+                      color: "#1db954", fontSize: 12, textDecoration: "none",
+                      fontFamily: "'Space Mono', monospace",
+                    }}
+                  >
+                    ♫ Spotify
+                  </a>
+                )}
+                {track.spotify?.preview_url && (
+                  <audio controls src={track.spotify.preview_url} style={{ height: 24 }} />
+                )}
               </div>
             </div>
-            <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-              {track.spotify?.found && (
-                <a
-                  href={track.spotify.spotify_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    padding: "4px 12px", borderRadius: 20,
-                    background: "rgba(29,185,84,0.15)",
-                    border: "1px solid rgba(29,185,84,0.3)",
-                    color: "#1db954", fontSize: 12, textDecoration: "none",
-                    fontFamily: "'Space Mono', monospace",
-                  }}
-                >
-                  ♫ Spotify
-                </a>
-              )}
-              {track.spotify?.preview_url && (
-                <audio controls src={track.spotify.preview_url} style={{ height: 24 }} />
-              )}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -996,6 +1317,136 @@ function ShoppingOutput({ output }) {
   );
 }
 
+// ── Recipe Output ─────────────────────────────────────────────────────────
+
+function RecipeOutput({ output }) {
+  const [servings, setServings] = useState(output?.servings || 1);
+  const [checkedItems, setCheckedItems] = useState({});
+  const [openStep, setOpenStep] = useState(null);
+
+  const originalServings = output?.servings || 1;
+  const ratio = servings / originalServings;
+
+  const toggleCheck = (idx) => {
+    setCheckedItems(prev => ({ ...prev, [idx]: !prev[idx] }));
+  };
+
+  const copyIngredients = () => {
+    if (!output?.ingredients) return;
+    const text = output.ingredients.map(ing => {
+      const q = ing.quantity ? Number((ing.quantity * ratio).toFixed(2)) : "";
+      return `- ${q} ${ing.unit || ""} ${ing.name}`.replace(/\s+/g, " ").trim();
+    }).join("\n");
+    navigator.clipboard.writeText(text);
+  };
+
+  const getShoppingUrl = (item) => `https://www.google.com/search?tbm=shop&q=${encodeURIComponent(item)}`;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+      {/* Header Info */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+        {output?.prep_time && <Tag label={`Prep: ${output.prep_time}`} color="var(--accent2)" />}
+        {output?.cook_time && <Tag label={`Cook: ${output.cook_time}`} color="var(--danger)" />}
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1.5fr)", gap: 24, alignItems: "start" }}>
+        {/* Ingredients Column */}
+        {output?.ingredients?.length > 0 && (
+          <Card style={{ padding: 20 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <h3 style={{ fontWeight: 700, fontSize: 16 }}>Ingredients</h3>
+              <button
+                onClick={copyIngredients}
+                style={{ background: "none", border: "none", color: "var(--accent)", cursor: "pointer", fontSize: 12, fontWeight: 700 }}
+              >
+                COPY LIST
+              </button>
+            </div>
+
+            {/* Serving Scaler */}
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20, background: "var(--surface2)", padding: 12, borderRadius: "var(--radius)" }}>
+              <span style={{ fontSize: 13, color: "var(--muted)", fontWeight: 600 }}>Servings:</span>
+              <button onClick={() => setServings(Math.max(1, servings - 1))} style={{ width: 24, height: 24, borderRadius: 12, border: "none", background: "var(--surface)", color: "var(--text)", cursor: "pointer" }}>-</button>
+              <span style={{ fontSize: 14, fontWeight: 700, fontFamily: "'Space Mono', monospace", width: 24, textAlign: "center" }}>{servings}</span>
+              <button onClick={() => setServings(servings + 1)} style={{ width: 24, height: 24, borderRadius: 12, border: "none", background: "var(--surface)", color: "var(--text)", cursor: "pointer" }}>+</button>
+            </div>
+
+            <div style={{ display: "grid", gap: 8 }}>
+              {output.ingredients.map((ing, i) => {
+                const isChecked = checkedItems[i];
+                const displayedQty = ing.quantity ? Number((ing.quantity * ratio).toFixed(2)) : null;
+                return (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 0", borderBottom: i < output.ingredients.length - 1 ? "1px solid var(--border)" : "none" }}>
+                    <div
+                      onClick={() => toggleCheck(i)}
+                      style={{
+                        width: 18, height: 18, borderRadius: 4, border: `2px solid ${isChecked ? "var(--success)" : "var(--border)"}`,
+                        background: isChecked ? "var(--success)" : "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0
+                      }}
+                    >
+                      {isChecked && <span style={{ color: "white", fontSize: 10, fontWeight: "bold" }}>✓</span>}
+                    </div>
+
+                    <div style={{ flex: 1, fontSize: 14, color: isChecked ? "var(--muted)" : "var(--text)", textDecoration: isChecked ? "line-through" : "none", transition: "all 0.2s" }}>
+                      {displayedQty && <strong style={{ color: isChecked ? "inherit" : "var(--accent)" }}>{displayedQty} </strong>}
+                      {ing.unit && <span style={{ color: "var(--muted)" }}>{ing.unit} </span>}
+                      {ing.name}
+                    </div>
+
+                    <a href={getShoppingUrl(ing.name)} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }} title="Shop ingredient">
+                      <span style={{ fontSize: 14, background: "var(--surface2)", padding: "4px 6px", borderRadius: 4, cursor: "pointer" }}>🛒</span>
+                    </a>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        )}
+
+        {/* Steps Column */}
+        {output?.steps?.length > 0 && (
+          <div style={{ display: "grid", gap: 12 }}>
+            <h3 style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>Instructions</h3>
+            {output.steps.map((step, i) => (
+              <div key={i} style={{ border: "1px solid var(--border)", borderRadius: "var(--radius)", overflow: "hidden" }}>
+                <button
+                  onClick={() => setOpenStep(openStep === i ? null : i)}
+                  style={{
+                    width: "100%", padding: "16px", background: openStep === i ? "var(--surface2)" : "var(--surface)",
+                    border: "none", cursor: "pointer", textAlign: "left", display: "flex", alignItems: "flex-start", gap: 16
+                  }}
+                >
+                  <div style={{
+                    width: 26, height: 26, borderRadius: "50%", background: "var(--accent3)", color: "white",
+                    display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, flexShrink: 0
+                  }}>
+                    {step.index || (i + 1)}
+                  </div>
+                  <div style={{ flex: 1, color: "var(--text)", fontSize: 14, lineHeight: 1.5, fontWeight: openStep === i ? 600 : 400 }}>
+                    Step {step.index || (i + 1)}
+                    {step.timestamp_secs != null && (
+                      <div style={{ fontSize: 11, color: "var(--muted)", fontFamily: "'Space Mono', monospace", marginTop: 4, fontWeight: "normal" }}>
+                        @ {formatDuration(step.timestamp_secs)}
+                      </div>
+                    )}
+                  </div>
+                  <span style={{ color: "var(--muted)" }}>{openStep === i ? "▲" : "▼"}</span>
+                </button>
+                {openStep === i && (
+                  <div style={{ padding: "16px", paddingLeft: 58, background: "var(--surface2)", borderTop: "1px solid var(--border)" }}>
+                    <p style={{ fontSize: 14, color: "var(--text)", lineHeight: 1.6 }}>{step.text}</p>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Full Result View ───────────────────────────────────────────────────────
 
 function ResultView({ result, onReset }) {
@@ -1010,6 +1461,7 @@ function ResultView({ result, onReset }) {
       case "educational": return <EducationalOutput output={output} />;
       case "comedy": return <ComedyOutput output={output} />;
       case "shopping": return <ShoppingOutput output={output} />;
+      case "recipe": return <RecipeOutput output={output} />;
       default: return <GenericOutput output={output} />;
     }
   };
@@ -1030,27 +1482,35 @@ function ResultView({ result, onReset }) {
 
       {/* Tabs */}
       <div style={{ display: "flex", gap: 4, marginBottom: 20, borderBottom: "1px solid var(--border)", paddingBottom: 0 }}>
-        {["output", "classification", "transcript"].map(t => (
-          <button key={t} onClick={() => setTab(t)} style={{
-            padding: "10px 20px",
-            background: "none",
-            border: "none",
-            borderBottom: `2px solid ${tab === t ? "var(--accent)" : "transparent"}`,
-            color: tab === t ? "var(--accent)" : "var(--muted)",
-            cursor: "pointer",
-            fontFamily: "'Space Mono', monospace",
-            fontSize: 13,
-            fontWeight: tab === t ? 700 : 400,
-            letterSpacing: "0.05em",
-            textTransform: "uppercase",
-            transition: "all 0.2s",
-          }}>
-            {t}
-          </button>
-        ))}
+        {["output", "timeline", "classification", "transcript"].map(t => {
+          // Hide timeline tab if frames array is empty
+          if (t === "timeline" && (!result?.frames || result.frames.length === 0)) return null;
+
+          return (
+            <button key={t} onClick={() => setTab(t)} style={{
+              padding: "10px 20px",
+              background: "none",
+              border: "none",
+              borderBottom: `2px solid ${tab === t ? "var(--accent)" : "transparent"}`,
+              color: tab === t ? "var(--accent)" : "var(--muted)",
+              cursor: "pointer",
+              fontFamily: "'Space Mono', monospace",
+              fontSize: 13,
+              fontWeight: tab === t ? 700 : 400,
+              letterSpacing: "0.05em",
+              textTransform: "uppercase",
+              transition: "all 0.2s",
+            }}>
+              {t}
+            </button>
+          );
+        })}
       </div>
 
       {tab === "output" && renderOutput()}
+      {tab === "timeline" && (
+        <FrameTimeline frames={result?.frames} />
+      )}
       {tab === "classification" && (
         <ClassificationScores
           allScores={result?.classification?.all_scores}
@@ -1538,7 +1998,128 @@ function FeatureGrid() {
   );
 }
 
-// ── Main App ───────────────────────────────────────────────────────────────
+// ── Labeling Tool (Admin Only) ───────────────────────────────────────────────────
+
+const CATEGORIES = ["listicle", "music", "educational", "comedy", "shopping", "recipe", "documentary", "tutorial", "news", "other"];
+const CAT_COLORS = { listicle: "var(--accent)", music: "#ec4899", educational: "var(--success)", comedy: "var(--accent3)", shopping: "#f97316", recipe: "#84cc16", documentary: "#06b6d4", tutorial: "var(--accent2)", news: "#ef4444", other: "var(--muted)" };
+
+function LabelingTool() {
+  const [samples, setSamples] = useState([]);
+  const [idx, setIdx] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    apiGet("/api/v1/admin/training-data")
+      .then(all => setSamples(all.filter(s => !s.is_labeled)))
+      .catch(() => { })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const labeled = samples.filter(s => s.is_labeled).length;
+  const total = samples.length;
+  const current = samples[idx];
+
+  const handleLabel = async (category) => {
+    if (!current || saving) return;
+    setSaving(true);
+    try {
+      await apiPost("/api/v1/admin/label", { sample_id: current.sample_id, human_label: category });
+      setSamples(prev => prev.map((s, i) => i === idx ? { ...s, human_label: category, is_labeled: true } : s));
+      if (idx + 1 >= samples.length) setDone(true);
+      else setIdx(i => i + 1);
+    } catch (e) { console.error(e); }
+    finally { setSaving(false); }
+  };
+
+  const handleSkip = () => {
+    if (idx + 1 >= samples.length) setDone(true);
+    else setIdx(i => i + 1);
+  };
+
+  const handleExport = async () => {
+    const token = localStorage.getItem("yt_token");
+    const res = await fetch("/api/v1/admin/training-data/export", { headers: { Authorization: `Bearer ${token}` } });
+    const blob = await res.blob();
+    triggerDownload(blob, "training_data.csv");
+  };
+
+  if (loading) return <div style={{ display: "grid", gap: 16 }}>{[300, 150, 200].map((h, i) => <div key={i} className="skeleton" style={{ height: h }} />)}</div>;
+
+  return (
+    <div style={{ animation: "fadeUp 0.5s ease" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 28 }}>
+        <h2 style={{ fontWeight: 800, fontSize: 22 }}>🏷️ Data Labeling Tool</h2>
+        <GlowButton variant="secondary" style={{ padding: "8px 16px", fontSize: 13 }} onClick={handleExport}>⬇ Export CSV</GlowButton>
+      </div>
+
+      {/* Progress */}
+      <Card style={{ marginBottom: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "var(--muted)", marginBottom: 10 }}>
+          <span>Progress</span>
+          <span style={{ fontFamily: "'Space Mono', monospace" }}>{idx} of {total} samples</span>
+        </div>
+        <div style={{ background: "var(--surface2)", borderRadius: 4, height: 8 }}>
+          <div style={{ height: "100%", background: "var(--accent)", borderRadius: 4, width: `${total > 0 ? (idx / total) * 100 : 0}%`, transition: "width 0.4s" }} />
+        </div>
+      </Card>
+
+      {done || !current ? (
+        <Card style={{ textAlign: "center", padding: 48 }}>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>✅</div>
+          <h3 style={{ fontWeight: 700, marginBottom: 8 }}>All samples labeled!</h3>
+          <p style={{ color: "var(--muted)", marginBottom: 24 }}>Export your labeled dataset to train the classifier.</p>
+          <GlowButton onClick={handleExport}>⬇ Export Training CSV</GlowButton>
+        </Card>
+      ) : (
+        <Card>
+          <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
+            {current.predicted_category && <Tag label={`AI: ${current.predicted_category}`} color="var(--accent2)" />}
+            {current.confidence != null && <Tag label={`${(current.confidence * 100).toFixed(0)}% confidence`} color="var(--muted)" />}
+          </div>
+
+          <h3 style={{ fontWeight: 700, fontSize: 18, marginBottom: 16, lineHeight: 1.4 }}>
+            {current.video_title || current.sample_id}
+          </h3>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 28 }}>
+            {current.transcript_preview && (
+              <div style={{ background: "var(--surface2)", padding: 14, borderRadius: "var(--radius)", fontSize: 13, color: "var(--muted)", lineHeight: 1.6 }}>
+                <div style={{ color: "var(--text)", fontWeight: 600, marginBottom: 6 }}>📝 Transcript</div>
+                {current.transcript_preview}
+              </div>
+            )}
+            {current.ocr_preview && (
+              <div style={{ background: "var(--surface2)", padding: 14, borderRadius: "var(--radius)", fontSize: 13, color: "var(--muted)", lineHeight: 1.6, fontFamily: "'Space Mono', monospace" }}>
+                <div style={{ color: "var(--text)", fontWeight: 600, marginBottom: 6, fontFamily: "'Syne', sans-serif" }}>🔍 OCR Text</div>
+                {current.ocr_preview}
+              </div>
+            )}
+          </div>
+
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+            {CATEGORIES.map(cat => (
+              <button key={cat} onClick={() => handleLabel(cat)} disabled={saving} style={{
+                padding: "8px 16px", borderRadius: "var(--radius)", border: `2px solid ${CAT_COLORS[cat] || "var(--border)"}`,
+                background: "transparent", color: CAT_COLORS[cat] || "var(--text)", cursor: saving ? "not-allowed" : "pointer",
+                fontSize: 13, fontWeight: 700, fontFamily: "'Space Mono', monospace", letterSpacing: "0.04em",
+                textTransform: "uppercase", transition: "all 0.15s", opacity: saving ? 0.5 : 1,
+              }}
+                onMouseEnter={e => { e.currentTarget.style.background = CAT_COLORS[cat]; e.currentTarget.style.color = "#08080f"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = CAT_COLORS[cat] || "var(--text)"; }}
+              >{cat}</button>
+            ))}
+          </div>
+
+          <button onClick={handleSkip} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: 13 }}>Skip →</button>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ── Main App ────────────────────────────────────────────────────────────────
 
 export default function App() {
   const [phase, setPhase] = useState("idle"); // idle | processing | done | analytics
@@ -1694,6 +2275,19 @@ export default function App() {
             >
               📊 Analytics
             </button>
+            {user?.role === "admin" && (
+              <button
+                onClick={() => setPhase(p => p === "label" ? "idle" : "label")}
+                style={{
+                  background: "none", border: "none",
+                  color: phase === "label" ? "var(--accent3)" : "var(--muted)",
+                  cursor: "pointer", fontFamily: "'Syne', sans-serif", fontSize: 14, fontWeight: phase === "label" ? 700 : 400,
+                  transition: "color 0.2s",
+                }}
+              >
+                🏷️ Label
+              </button>
+            )}
             <a href="/api/docs" target="_blank" rel="noopener noreferrer" style={{ color: "var(--muted)", textDecoration: "none" }}>API Docs</a>
             <a href="https://github.com" target="_blank" rel="noopener noreferrer" style={{ color: "var(--muted)", textDecoration: "none" }}>GitHub</a>
             {user ? (
@@ -1716,6 +2310,7 @@ export default function App() {
         {/* Main content */}
         <main style={{ maxWidth: 900, margin: "0 auto", padding: "64px 24px 120px" }}>
           {phase === "analytics" && <AnalyticsDashboard />}
+          {phase === "label" && <LabelingTool />}
 
           {phase === "idle" && (
             <>

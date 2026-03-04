@@ -138,14 +138,14 @@ class TestListicleExtractor:
             "description": "1. The Godfather\n2. Pulp Fiction\n3. Schindler's List\n4. The Dark Knight\n5. 12 Angry Men",
             "tags": ["movies", "ranking"],
         }
-        result = self.extractor.extract(transcript, [], metadata, [])
+        result = self.extractor.extract(transcript, [], metadata, [], [])
         assert result["type"] == "listicle"
         assert result["total_count"] >= 3
         assert all("title" in item for item in result["items"])
         assert all("rank" in item for item in result["items"])
 
     def test_handles_empty_transcript(self):
-        result = self.extractor.extract("", [], {"title": "", "description": "", "tags": []}, [])
+        result = self.extractor.extract("", [], {"title": "", "description": "", "tags": []}, [], [])
         assert result["type"] == "listicle"
 
 
@@ -156,13 +156,13 @@ class TestMusicExtractor:
     def test_extracts_tracks(self):
         description = "Bohemian Rhapsody - Queen\nStairway to Heaven - Led Zeppelin\nHotel California - Eagles"
         metadata = {"title": "Best Rock Songs Ever", "description": description, "tags": []}
-        result = self.extractor.extract("", [], metadata, [])
+        result = self.extractor.extract("", [], metadata, [], [])
         assert result["type"] == "music"
         assert len(result["tracks"]) >= 2
 
     def test_track_structure(self):
         metadata = {"title": "Playlist", "description": "Song A - Artist B\nSong C - Artist D", "tags": []}
-        result = self.extractor.extract("", [], metadata, [])
+        result = self.extractor.extract("", [], metadata, [], [])
         for track in result["tracks"]:
             assert "title" in track
             assert "artist" in track
@@ -184,7 +184,7 @@ class TestEducationalExtractor:
             {"start": 0, "end": 5, "text": "Welcome to this Python tutorial.", "no_speech_prob": 0.0},
             {"start": 5, "end": 10, "text": "Let's look at variables.", "no_speech_prob": 0.0},
         ]
-        result = self.extractor.extract("Python tutorial content", segments, metadata, [])
+        result = self.extractor.extract("Python tutorial content", segments, metadata, [], [])
         assert result["type"] == "educational"
         assert len(result["chapters"]) >= 1
 
@@ -195,7 +195,7 @@ class TestEducationalExtractor:
             {"start": i * 60, "end": (i + 1) * 60, "text": f"Segment {i}", "no_speech_prob": 0.0}
             for i in range(20)
         ]
-        result = self.extractor.extract("Full lecture content.", segments, metadata, [])
+        result = self.extractor.extract("Full lecture content.", segments, metadata, [], [])
         assert result["type"] == "educational"
         assert len(result["chapters"]) >= 1
 

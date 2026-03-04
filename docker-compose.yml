@@ -1,81 +1,131 @@
-version: "3.9"
-
 services:
   postgres:
     image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: ytclassifier
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+    container_name: ytclfr-postgres
+    restart: unless-stopped
     ports:
       - "5432:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
-
-  mongo:
-    image: mongo:7
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-ytclassifier}
     volumes:
-      - mongo_data:/data/db
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ytclassifier"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mongodb:
+    image: mongo:7
+    container_name: ytclfr-mongo
+    restart: unless-stopped
     ports:
       - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: echo "stat" | mongostat -n 1
+      interval: 15s
+      timeout: 5s
+      retries: 3
 
   redis:
     image: redis:7-alpine
+    container_name: ytclfr-redis
+    restart: unless-stopped
     ports:
       - "6379:6379"
+    volumes:
+      - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
+      timeout: 5s
+      retries: 5
 
   backend:
-    build: ./backend
-    command: uvicorn main:app --host 0.0.0.0 --port 8000
-    env_file: ./backend/.env
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ytclfr-backend
+    restart: unless-stopped
     ports:
       - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - downloads_data:/tmp/ytclassifier/downloads
+      - frames_data:/tmp/ytclassifier/frames
+      - audio_data:/tmp/ytclassifier/audio
+      - checkpoints_data:/app/checkpoints
+    env_file: .env
     depends_on:
       postgres:
         condition: service_healthy
-      mongo:
-        condition: service_started
+      mongodb:
+        condition: service_healthy
       redis:
         condition: service_healthy
-    volumes:
-      - /tmp/ytclassifier:/tmp/ytclassifier
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn main:create_app --factory --host 0.0.0.0 --port 8000"
 
   worker:
-    build: ./backend
-    command: celery -A services.pipeline.celery_app worker --loglevel=info --concurrency=2
-    env_file: ./backend/.env
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ytclfr-worker
+    restart: unless-stopped
+    volumes:
+      - ./backend:/app
+      - downloads_data:/tmp/ytclassifier/downloads
+      - frames_data:/tmp/ytclassifier/frames
+      - audio_data:/tmp/ytclassifier/audio
+      - checkpoints_data:/app/checkpoints
+    env_file: .env
     depends_on:
-      postgres:
-        condition: service_healthy
-      mongo:
-        condition: service_started
       redis:
         condition: service_healthy
-    volumes:
-      - /tmp/ytclassifier:/tmp/ytclassifier
+      postgres:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+    command: >
+      celery -A services.pipeline.celery_app worker --loglevel=info -E -c 2
 
   flower:
-    build: ./backend
-    command: celery -A services.pipeline.celery_app flower --port=5555
+    image: mher/flower
+    container_name: ytclfr-flower
+    restart: unless-stopped
     ports:
       - "5555:5555"
+    environment:
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
+      FLOWER_PORT: 5555
     depends_on:
+      worker:
+        condition: service_started
       redis:
         condition: service_healthy
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: ytclfr-frontend
+    restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "3000:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_started
 
 volumes:
   postgres_data:
   mongo_data:
+  redis_data:
+  downloads_data:
+  frames_data:
+  audio_data:
+  checkpoints_data:
