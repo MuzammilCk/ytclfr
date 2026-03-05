@@ -158,9 +158,15 @@ class VideoDownloader:
             # Try mp4 first, then any best video+audio, then any single file.
             # The wide fallback chain prevents "Requested format is not available"
             # errors on channels that only serve webm/vp9.
+            # Prefer H.264 (avc1) and explicitly exclude AV1 (av01).
+            # Alpine Linux ffmpeg has no AV1 software decoder so AV1-encoded
+            # videos produce 0 frames. The fallback chain is wide to avoid
+            # "Requested format is not available" on unusual channels.
             "format": (
-                "bestvideo[ext=mp4][height<=1080]+bestaudio[ext=m4a]"
-                "/bestvideo[height<=1080]+bestaudio"
+                "bestvideo[vcodec*=avc1][ext=mp4][height<=1080]+bestaudio[ext=m4a]"
+                "/bestvideo[vcodec!*=av01][ext=mp4][height<=1080]+bestaudio[ext=m4a]"
+                "/bestvideo[vcodec!*=av01][height<=1080]+bestaudio"
+                "/bestvideo[vcodec!*=av01]+bestaudio"
                 "/bestvideo+bestaudio"
                 "/best[height<=1080]"
                 "/best"

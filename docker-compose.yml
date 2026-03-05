@@ -5,10 +5,11 @@ services:
     restart: unless-stopped
     ports:
       - "5432:5432"
+    env_file: ./backend/.env
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      POSTGRES_DB: ${POSTGRES_DB:-ytclassifier}
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: Muzu1234
+      POSTGRES_DB: ytclassifier
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -17,7 +18,7 @@ services:
       timeout: 5s
       retries: 5
 
-  mongodb:
+  mongo:
     image: mongo:7
     container_name: ytclfr-mongo
     restart: unless-stopped
@@ -59,11 +60,12 @@ services:
       - frames_data:/tmp/ytclassifier/frames
       - audio_data:/tmp/ytclassifier/audio
       - checkpoints_data:/app/checkpoints
-    env_file: .env
+      - model_cache:/root/.cache
+    env_file: ./backend/.env
     depends_on:
       postgres:
         condition: service_healthy
-      mongodb:
+      mongo:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -83,13 +85,14 @@ services:
       - frames_data:/tmp/ytclassifier/frames
       - audio_data:/tmp/ytclassifier/audio
       - checkpoints_data:/app/checkpoints
-    env_file: .env
+      - model_cache:/root/.cache
+    env_file: ./backend/.env
     depends_on:
       redis:
         condition: service_healthy
       postgres:
         condition: service_healthy
-      mongodb:
+      mongo:
         condition: service_healthy
     command: >
       celery -A services.pipeline.celery_app worker --loglevel=info -E -c 2
@@ -129,3 +132,4 @@ volumes:
   frames_data:
   audio_data:
   checkpoints_data:
+  model_cache:
