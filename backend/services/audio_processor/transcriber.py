@@ -44,9 +44,11 @@ class TranscriptionResult:
     segments_english: Optional[List[Segment]] = None
     was_translated: bool = False
     word_count: int = field(init=False)
+    is_silent: bool = field(init=False)   # True when word_count < 20 (silent/background-music video)
 
     def __post_init__(self):
         self.word_count = len(self.full_text.split())
+        self.is_silent = self.word_count < 20
 
 
 # Module-level model cache (single load per process)

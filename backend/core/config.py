@@ -106,8 +106,14 @@ class Settings(BaseSettings):
     TMDB_BASE_URL: str = "https://api.themoviedb.org/3"
     TMDB_IMAGE_BASE: str = "https://image.tmdb.org/t/p/w500"
 
-    # ── MusicBrainz ──────────────────────────────────────────────────────────
+    # ── MusicBrainz ──────────────────────────────────────────────────────────────
     MUSICBRAINZ_APP_NAME: str = "YTClassifier/1.0"
+
+    # ── Intelligence Layer (Gemini LLM Brain) ─────────────────────────────────
+    GEMINI_API_KEY: str = ""                  # get free key: https://aistudio.google.com/app/apikey
+    GEMINI_MODEL: str = "gemini-1.5-flash"   # free tier: 15 RPM, 1500 req/day
+    BRAIN_CONFIDENCE_THRESHOLD: float = 0.85  # Tier 2 routing threshold (Month 6)
+    LLM_FALLBACK_ENABLED: bool = True         # fall back to heuristics if LLM unavailable
 
     # ── Auth / JWT ───────────────────────────────────────────────────────────
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30

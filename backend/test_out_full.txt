@@ -1,0 +1,44 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.5, pytest-8.3.4, pluggy-1.6.0 -- C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\python.exe
+cachedir: .pytest_cache
+rootdir: D:\projects\youtube-classifier
+configfile: pytest.ini
+plugins: anyio-4.12.0, Faker-40.4.0, jaxtyping-0.3.7, langsmith-0.4.49, asyncio-0.25.2, cov-6.0.0, mock-3.15.1, typeguard-2.13.3
+asyncio: mode=Mode.AUTO, asyncio_default_fixture_loop_scope=function
+collecting ... collected 4 items
+
+..\tests\integration\test_end_to_end_month1.py::test_full_music_pipeline_brain_extracts_20_tracks PASSED [ 25%]
+..\tests\integration\test_end_to_end_month1.py::test_silent_video_end_to_end FAILED [ 50%]
+..\tests\integration\test_end_to_end_month1.py::test_brain_unknown_fallback_extraction FAILED [ 75%]
+..\tests\integration\test_end_to_end_month1.py::test_listicle_extraction_mapping PASSED [100%]
+
+================================== FAILURES ===================================
+________________________ test_silent_video_end_to_end _________________________
+..\tests\integration\test_end_to_end_month1.py:146: in test_silent_video_end_to_end
+    from services.pipeline import _brain_result_to_extraction
+services\pipeline.py:20: in <module>
+    from celery.exceptions import SoftTimeLimitExceeded
+E   ModuleNotFoundError: No module named 'celery.exceptions'; 'celery' is not a package
+___________________ test_brain_unknown_fallback_extraction ____________________
+..\tests\integration\test_end_to_end_month1.py:179: in test_brain_unknown_fallback_extraction
+    from services.pipeline import _brain_result_to_extraction
+services\pipeline.py:20: in <module>
+    from celery.exceptions import SoftTimeLimitExceeded
+E   ModuleNotFoundError: No module named 'celery.exceptions'; 'celery' is not a package
+============================== warnings summary ===============================
+services\intelligence\llm_brain.py:31
+  D:\projects\youtube-classifier\tests\integration\../../backend\services\intelligence\llm_brain.py:31: FutureWarning: 
+  
+  All support for the `google.generativeai` package has ended. It will no longer be receiving 
+  updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+  See README for more details:
+  
+  https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+  
+    import google.generativeai as genai
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED ..\tests\integration\test_end_to_end_month1.py::test_silent_video_end_to_end
+FAILED ..\tests\integration\test_end_to_end_month1.py::test_brain_unknown_fallback_extraction
+=================== 2 failed, 2 passed, 1 warning in 3.59s ====================

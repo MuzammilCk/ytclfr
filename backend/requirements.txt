@@ -98,5 +98,9 @@ cachetools==5.5.0
 pytest==8.3.4
 pytest-asyncio==0.25.2
 pytest-cov==6.0.0
+pytest-mock==3.14.0
 httpx==0.28.1
 factory-boy==3.3.1
+
+# ── Intelligence Layer ────────────────────────────────────────────────────────
+google-generativeai>=0.8.0          # Gemini API (LLM brain — free tier sufficient for dev)

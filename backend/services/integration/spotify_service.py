@@ -13,6 +13,7 @@ Features
 from __future__ import annotations
 
 import asyncio
+import difflib
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
@@ -186,13 +187,19 @@ class SpotifyService:
                     if items:
                         t = items[0]
                         
-                        # Verification logic: if it was a title-only search, ensure some artist name overlap
+                        # Verification: for fuzzy strategies, ensure artist names are plausibly related.
+                        # Use difflib ratio (>= 0.6) instead of word overlap to handle partial names,
+                        # featured artists ("ft."), alternate spellings, and translated names.
                         if confidence == "fuzzy" and clean_artist:
                             found_artists = " ".join([a["name"].lower() for a in t["artists"]])
-                            # Very basic fuzzy check — robust enough for now
-                            overlap = sum(1 for w in clean_artist.lower().split() if w in found_artists)
-                            if overlap == 0 and len(clean_artist.split()) > 0:
+                            ratio = difflib.SequenceMatcher(
+                                None,
+                                clean_artist.lower(),
+                                found_artists,
+                            ).ratio()
+                            if ratio < 0.6:
                                 break  # Skip this result, try next strategy
+
 
                         return TrackInfo(
                             spotify_id=t["id"],

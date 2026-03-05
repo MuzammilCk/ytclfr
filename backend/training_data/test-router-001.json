@@ -1,0 +1,22 @@
+{
+  "id": "test-router-001",
+  "ts": "2026-03-05T17:24:08.785163+00:00",
+  "title": "Top Songs",
+  "tags": [],
+  "description_preview": "",
+  "ocr_aggregated": "",
+  "ocr_frame_count": 0,
+  "ocr_content_frame_count": 0,
+  "transcript_preview": "(silent)",
+  "llm_label": "music",
+  "llm_confidence": 0.95,
+  "llm_items_count": 1,
+  "llm_extraction_source": "ocr",
+  "llm_model_used": "gemini-1.5-flash",
+  "llm_language": "en",
+  "llm_reasoning": "Test result",
+  "llm_fallback_reason": null,
+  "human_label": null,
+  "human_verified": false,
+  "schema_version": "1.1"
+}

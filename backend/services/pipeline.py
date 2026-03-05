@@ -8,12 +8,13 @@ results to MongoDB.
 from __future__ import annotations
 
 import asyncio
+import os
 import shutil
 import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 from celery import Celery
 from celery.exceptions import SoftTimeLimitExceeded
@@ -39,6 +40,8 @@ from services.extraction.llm_extractor import LlmExtractor
 from services.integration.tmdb_service import TMDbService
 from services.integration.spotify_service import SpotifyService
 from services.vision.yolo_detector import YOLODetector
+from services.intelligence.router import IntelligenceRouter
+from services.intelligence.extraction_mapper import brain_result_to_extraction
 
 settings = get_settings()
 
@@ -120,21 +123,19 @@ def load_models_on_startup(**kwargs):
     except Exception as exc:
         logger.error(f"Failed to load YOLO: {exc}")
 
-    # Classifier models (Frame & Text)
+    # Intelligence router (Gemini LLM Brain — replaces EfficientNet+BERT ensemble)
     try:
-        from services.classification.classifier import MultiModalClassifier
-        classifier_svc = MultiModalClassifier()
-        # This will trigger the fallback loading logic inside those methods,
-        # load the weights from disk, and return the initialized eval() model.
-        _models["efficientnet"] = classifier_svc._get_frame_model()
-        logger.info("FrameClassifier (EfficientNet) loaded into cache")
-        
-        _models["bert"] = classifier_svc._get_text_model()
-        logger.info("TextClassifier (BERT) loaded into cache")
+        _models["brain_router"] = IntelligenceRouter()
+        logger.info("IntelligenceRouter (Gemini brain) initialized")
     except Exception as exc:
-        logger.error(f"Failed to load classification models: {exc}")
+        logger.error(f"Failed to initialize IntelligenceRouter: {exc}")
 
-    _models["classifier"] = MultiModalClassifier()
+    # Legacy classifier kept for heuristic fallback only
+    try:
+        _models["classifier"] = MultiModalClassifier()
+    except Exception as exc:
+        logger.warning(f"Legacy classifier load failed (non-fatal, used for heuristics only): {exc}")
+
     _models["tmdb"] = TMDbService()
     _models["spotify"] = SpotifyService()
     _models["yolo"] = YOLODetector()
@@ -208,7 +209,102 @@ def _check_existing(video_url: str) -> Optional[str]:
         return None
 
 
+
+def _brain_result_to_extraction(brain_result, category: str) -> dict:
+    """
+    Convert a BrainResult into the extraction dict format that downstream
+    enrichment steps (Spotify, TMDb, etc.) already understand.
+
+    This is the translation layer between the new intelligence layer
+    and the existing enrichment pipeline.
+    """
+    from services.intelligence.llm_brain import BrainResult as _BR
+    items = brain_result.items or []
+    base = {
+        "type": category,
+        "extraction_source": brain_result.extraction_source,
+        "brain_confidence": brain_result.confidence,
+        "brain_model": brain_result.model_used,
+    }
+
+    if category == "music":
+        # Normalise items to {title, artist, rank, timestamp_secs}
+        tracks = []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            title = item.get("title", "").strip()
+            artist = item.get("artist", "").strip()
+            if not title:
+                continue
+            tracks.append({
+                "title": title,
+                "artist": artist,
+                "rank": item.get("rank"),
+                "timestamp_secs": item.get("timestamp_secs"),
+                "raw_ocr": item.get("raw_ocr", ""),
+                "source": brain_result.extraction_source,
+            })
+        return {**base, "tracks": tracks}
+
+    elif category == "listicle":
+        list_items = []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            title = item.get("title", "").strip()
+            if not title:
+                continue
+            list_items.append({
+                "rank": item.get("rank"),
+                "title": title,
+                "year": item.get("year"),
+                "timestamp_secs": item.get("timestamp_secs"),
+                "raw_ocr": item.get("raw_ocr", ""),
+            })
+        return {**base, "items": list_items}
+
+    elif category == "shopping":
+        products = []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            name = item.get("name", "").strip()
+            if not name:
+                continue
+            products.append({
+                "name": name,
+                "brand": item.get("brand"),
+                "price": item.get("price"),
+                "category": item.get("category", ""),
+                "timestamp_secs": item.get("timestamp_secs"),
+            })
+        return {**base, "products": products}
+
+    elif category == "recipe":
+        # items is a list-of-one dict with 'ingredients' and 'steps'
+        recipe_data = items[0] if items and isinstance(items[0], dict) else {}
+        return {
+            **base,
+            "ingredients": recipe_data.get("ingredients", []),
+            "steps": recipe_data.get("steps", []),
+        }
+
+    elif category == "educational":
+        edu_data = items[0] if items and isinstance(items[0], dict) else {}
+        return {
+            **base,
+            "chapters": edu_data.get("chapters", []),
+            "key_concepts": edu_data.get("key_concepts", []),
+        }
+
+    else:
+        # gaming, vlog, news, review, comedy, unknown
+        return {**base, "items": items}
+
+
 @celery_app.task(
+
     bind=True,
     name="analyse_video",
     time_limit=600,
@@ -272,12 +368,66 @@ def analyse_video(
             elif frame_result.frame_paths:
                 frames_dir = str(Path(frame_result.frame_paths[0]).parent)
 
-            # ── Step 3: Audio transcription ───────────────────────────────────────
-            _update_status(analysis_id, "transcribing")
-            transcription = await transcriber.transcribe_with_translation(audio_path, language=None)
-            transcript_original = transcription.full_text
-            transcript_text = transcription.full_text_english if transcription.was_translated else transcript_original
-            
+            # ── Steps 3+4: OCR and Transcription (PARALLEL) ───────────────────────
+            # OCR runs on ALL frames simultaneously with transcription.
+            # OCR is the PRIMARY data source — it must complete before the brain is called.
+            _update_status(analysis_id, "processing")
+            logger.info(
+                f"[{analysis_id}] Running OCR + transcription in parallel "
+                f"({len(frame_result.frame_paths)} frames)"
+            )
+
+            from services.vision.ocr_service import OCRService
+            ocr_service_instance = OCRService()
+
+            async def _run_ocr_safe():
+                try:
+                    return await ocr_service_instance.extract_from_frames(
+                        frame_result.frame_paths,
+                        audio_language=None,   # language unknown yet; re-applied below if needed
+                    )
+                except Exception as exc:
+                    logger.warning(f"[{analysis_id}] OCR failed (non-fatal): {exc}")
+                    return None
+
+            async def _run_transcription_safe():
+                try:
+                    return await transcriber.transcribe_with_translation(audio_path, language=None)
+                except Exception as exc:
+                    logger.error(f"[{analysis_id}] Transcription failed: {exc}")
+                    raise
+
+            video_ocr_result, transcription = await asyncio.gather(
+                _run_ocr_safe(),
+                _run_transcription_safe(),
+            )
+
+            # If language was detected, re-run OCR with correct Tesseract lang pack
+            # (only when language is non-English AND OCR succeeded first time)
+            if (
+                video_ocr_result is not None
+                and transcription is not None
+                and transcription.language not in ("en", None)
+                and transcription.language_probability > 0.7
+            ):
+                logger.info(
+                    f"[{analysis_id}] Re-running OCR with language hint: {transcription.language}"
+                )
+                try:
+                    video_ocr_result = await ocr_service_instance.extract_from_frames(
+                        frame_result.frame_paths,
+                        audio_language=transcription.language,
+                    )
+                except Exception as exc:
+                    logger.warning(f"[{analysis_id}] Language-aware OCR re-run failed: {exc}")
+
+            # ── Prepare transcript vars ───────────────────────────────────────────
+            transcript_original = transcription.full_text if transcription else ""
+            transcript_text = (
+                transcription.full_text_english
+                if (transcription and transcription.was_translated)
+                else transcript_original
+            )
             transcript_segments = [
                 {
                     "start": s.start,
@@ -285,85 +435,107 @@ def analyse_video(
                     "text": s.text,
                     "no_speech_prob": s.no_speech_prob,
                 }
-                for s in (transcription.segments_english if transcription.was_translated else transcription.segments)
-            ]
-
-            # ── Step 4: Full-Frame OCR ────────────────────────────────────────────
-            ocr_text_for_classification = ""
-            video_ocr_result = None
-            try:
-                from services.vision.ocr_service import OCRService
-                ocr = OCRService()
-                logger.info(f"[{analysis_id}] Running full-frame OCR (audio_language={transcription.language})")
-                video_ocr_result = await ocr.extract_from_frames(
-                    frame_result.frame_paths, 
-                    audio_language=transcription.language
+                for s in (
+                    (transcription.segments_english if transcription.was_translated else transcription.segments)
+                    if transcription else []
                 )
-                if video_ocr_result:
-                    ocr_text_for_classification = video_ocr_result.aggregated_text
-            except Exception as exc:
-                logger.warning(f"[{analysis_id}] OCR failed (non-fatal): {exc}")
+            ]
+            ocr_text_for_classification = (
+                video_ocr_result.aggregated_text if video_ocr_result else ""
+            )
 
-            # ── Step 5: Classification ────────────────────────────────────────────
-            _update_status(analysis_id, "classifying")
-            classification = classifier.predict(
-                frame_paths=frame_result.frame_paths,
-                transcript=transcript_text,
-                title=metadata.get("title", ""),
-                description=metadata.get("description", ""),
-                tags=metadata.get("tags", []),
-                ocr_text=ocr_text_for_classification,
-            )
-            category = classification.predicted_category
-            logger.info(
-                f"[{analysis_id}] Category: {category} "
-                f"(confidence={classification.confidence:.2%})"
-            )
+            # ── Silent video detection ────────────────────────────────────────────
+            word_count = len(transcript_text.split()) if transcript_text else 0
+            is_silent = word_count < 20
+            if is_silent:
+                logger.info(
+                    f"[{analysis_id}] Silent/no-narration video detected "
+                    f"(word_count={word_count}). "
+                    f"OCR is the only data source. "
+                    f"Content frames: {video_ocr_result.frames_with_text if video_ocr_result else 0}"
+                )
+
+            # ── Step 5: Intelligence Brain (classify + extract) ───────────────────
+            # IntelligenceRouter replaces the EfficientNet+BERT+LlmExtractor chain.
+            # One call → category + items. Brain handles silent videos via OCR.
+            _update_status(analysis_id, "analyzing")
+            brain_router = _models.get("brain_router")
+            brain_result = None
+
+            if brain_router is not None:
+                ocr_frames_for_brain = video_ocr_result.frames if video_ocr_result else []
+                brain_result = await brain_router.run(
+                    metadata=metadata,
+                    frame_ocr_results=ocr_frames_for_brain,
+                    transcript_english=transcript_text,
+                    analysis_id=analysis_id,
+                )
+                category = brain_result.category
+                logger.info(
+                    f"[{analysis_id}] Brain result: category={category} "
+                    f"confidence={brain_result.confidence:.2f} "
+                    f"items={len(brain_result.items)} "
+                    f"model={brain_result.model_used}"
+                )
+            else:
+                logger.warning(
+                    f"[{analysis_id}] IntelligenceRouter not in _models. "
+                    f"Falling back to legacy heuristic classifier."
+                )
+                category = "unknown"
 
             # ── Step 6: Category-specific extraction ──────────────────────────────
+            # Brain result drives extraction. Heuristic regex is the hard fallback
+            # only when brain fails or returns category='unknown'.
             _update_status(analysis_id, "extracting_info")
-            
-            # 1. Attempt LLM Extraction first (if available)
-            llm_success = False
-            extraction = {}
-            
-            if llm_extractor.is_available():
-                logger.info(f"[{analysis_id}] Proceeding with LlmExtractor (llama.cpp)")
-                try:
+
+            # Build extraction from brain_result when brain succeeded with high confidence
+            brain_succeeded = (
+                brain_result is not None
+                and brain_result.fallback_reason is None
+                and brain_result.category != "unknown"
+            )
+
+            if brain_succeeded:
+                # Map brain items into the extraction format that enrichment expects
+                extraction = brain_result_to_extraction(brain_result, category)
+            else:
+                # Hard fallback: legacy heuristic regex extractors
+                logger.info(f"[{analysis_id}] Using heuristic fallback extractors (brain unavailable or unknown)")
+
+                # Try llama.cpp LlmExtractor first (if loaded)
+                llm_success = False
+                extraction = {}
+                if llm_extractor.is_available():
+                    try:
+                        extraction = await asyncio.to_thread(
+                            llm_extractor.extract,
+                            category=category,
+                            transcript=transcript_text,
+                            metadata=metadata,
+                            ocr_text=ocr_text_for_classification,
+                        )
+                        if extraction.get("type") != "error":
+                            llm_success = True
+                    except Exception as exc:
+                        logger.warning(f"[{analysis_id}] LlmExtractor exception: {exc}")
+
+                if not llm_success:
+                    extractor = get_extractor(category)
+                    if category == "shopping" and isinstance(extractor, ShoppingExtractor) and yolo_detector is not None:
+                        logger.info(f"[{analysis_id}] Running YOLO detection")
+                        yolo_detections = await yolo_detector.detect(frame_result.frame_paths)
+                        extractor.detections = yolo_detections
+
+                    ocr_frames = video_ocr_result.frames if video_ocr_result else []
                     extraction = await asyncio.to_thread(
-                        llm_extractor.extract,
-                        category=category,
-                        transcript=transcript_text,
+                        extractor.extract,
+                        transcript_text=transcript_text,
+                        segments=transcript_segments,
                         metadata=metadata,
-                        ocr_text=ocr_text_for_classification
+                        frame_paths=frame_result.frame_paths,
+                        frame_ocr_results=ocr_frames,
                     )
-                    if extraction.get("type") != "error":
-                        llm_success = True
-                    else:
-                        logger.warning(f"[{analysis_id}] LLM Extractor failed: {extraction.get('message')}")
-                except Exception as e:
-                    logger.warning(f"[{analysis_id}] LlmExtractor exception: {e}")
-                    
-            # 2. Fall back to heuristic regex extraction if LLM is unavailable or crashes
-            if not llm_success:
-                logger.info(f"[{analysis_id}] Proceeding with heuristic fallback extractors")
-                extractor = get_extractor(category)
-
-                if category == "shopping" and isinstance(extractor, ShoppingExtractor) and yolo_detector is not None:
-                    logger.info(f"[{analysis_id}] Running YOLO detection ({len(frame_result.frame_paths)} frames)")
-                    yolo_detections = await yolo_detector.detect(frame_result.frame_paths)
-                    extractor.detections = yolo_detections
-                    logger.info(f"[{analysis_id}] YOLO found {len(yolo_detections)} object(s)")
-
-                ocr_frames = video_ocr_result.frames if video_ocr_result else []
-                extraction = await asyncio.to_thread(
-                    extractor.extract,
-                    transcript_text=transcript_text,
-                    segments=transcript_segments,
-                    metadata=metadata,
-                    frame_paths=frame_result.frame_paths,
-                    frame_ocr_results=ocr_frames,
-                )
 
             # ── Step 7: External API enrichment ───────────────────────────────────
             _update_status(analysis_id, "enriching")
@@ -477,21 +649,24 @@ def analyse_video(
                 "analysis_id": analysis_id,
                 "video": {
                     **metadata,
-                    "language": transcription.language,
+                    "language": transcription.language if transcription else "unknown",
                 },
                 "classification": {
                     "predicted_category": category,
-                    "confidence": classification.confidence,
-                    "all_scores": classification.all_scores,
-                    "modality_breakdown": classification.modality_breakdown,
+                    "confidence": brain_result.confidence if brain_result else 0.0,
+                    "reasoning": brain_result.reasoning if brain_result else "",
+                    "model_used": brain_result.model_used if brain_result else "none",
+                    "extraction_source": brain_result.extraction_source if brain_result else "metadata",
+                    "fallback_reason": brain_result.fallback_reason if brain_result else "no_brain_router",
                 },
                 "transcription": {
                     "full_text": transcript_original,
-                    "full_text_english": transcription.full_text_english if transcription.was_translated else None,
-                    "language": transcription.language,
-                    "language_probability": transcription.language_probability,
-                    "was_translated": transcription.was_translated,
-                    "word_count": transcription.word_count,
+                    "full_text_english": transcription.full_text_english if (transcription and transcription.was_translated) else None,
+                    "language": transcription.language if transcription else "unknown",
+                    "language_probability": transcription.language_probability if transcription else 0.0,
+                    "was_translated": transcription.was_translated if transcription else False,
+                    "is_silent": is_silent,
+                    "word_count": transcription.word_count if transcription else 0,
                     "segments": transcript_segments,
                 },
                 "ocr_summary": ocr_summary,
@@ -501,17 +676,8 @@ def analyse_video(
                 "created_at": datetime.now(timezone.utc).isoformat(),
             }
 
-            # ── Training data collection ──────────────────────────────────────────────
-            await asyncio.to_thread(
-                _save_training_sample,
-                analysis_id=analysis_id,
-                metadata=metadata,
-                transcript_text=transcript_text,
-                ocr_text=ocr_text_for_classification,
-                category=category,
-                confidence=classification.confidence,
-                extraction=extraction,
-            )
+            # Training data is collected inside IntelligenceRouter.run() automatically.
+            # The old _save_training_sample call is replaced by training_collector.py.
 
             # ── Step 9: Persist to MongoDB ────────────────────────────────────────
             mongo_ok = await asyncio.to_thread(_persist_to_mongo, analysis_id, result)
