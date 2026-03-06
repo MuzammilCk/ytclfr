@@ -28,12 +28,12 @@ from typing import Any, Dict, List, Optional
 from loguru import logger
 
 try:
-    import google.generativeai as genai
-    from google.api_core.exceptions import ResourceExhausted, GoogleAPIError
+    from google import genai
+    from google.genai.errors import APIError
     _GEMINI_AVAILABLE = True
 except ImportError:
     _GEMINI_AVAILABLE = False
-    logger.warning("google-generativeai not installed; LLMBrain will run in fallback-only mode")
+    logger.warning("google-genai not installed; LLMBrain will run in fallback-only mode")
 
 
 # ── Result dataclass ──────────────────────────────────────────────────────────
@@ -148,19 +148,19 @@ class LLMBrain:
     def __init__(
         self,
         api_key: str,
-        model: str = "gemini-1.5-flash",
+        model: str = "gemini-3.1-flash-lite",
     ):
         self._api_key = api_key
         self._model_name = model
-        self._model = None   # initialized lazily in first call to avoid import-time side effects
+        self._client = None   # initialized lazily in first call to avoid import-time side effects
 
-    def _get_model(self):
-        """Lazy-initialize the Gemini model (thread-safe — runs in executor)."""
-        if self._model is None:
+    def _get_client(self):
+        """Lazy-initialize the Gemini client (thread-safe — runs in executor)."""
+        if self._client is None:
             if not _GEMINI_AVAILABLE:
                 raise RuntimeError(
-                    "google-generativeai is not installed. "
-                    "Run: pip install google-generativeai>=0.8.0"
+                    "google-genai is not installed. "
+                    "Run: pip install google-genai"
                 )
             if not self._api_key:
                 raise RuntimeError(
@@ -168,9 +168,8 @@ class LLMBrain:
                     "Add it to backend/.env and get a free key at "
                     "https://aistudio.google.com/app/apikey"
                 )
-            genai.configure(api_key=self._api_key)
-            self._model = genai.GenerativeModel(self._model_name)
-        return self._model
+            self._client = genai.Client(api_key=self._api_key)
+        return self._client
 
     def _build_user_message(
         self,
@@ -237,32 +236,34 @@ class LLMBrain:
         Returns (raw_text, input_tokens, output_tokens).
 
         Error handling:
-        - ResourceExhausted (429): wait 60s, retry once
-        - Other GoogleAPIError: re-raise to caller
+        - 429 Errors: wait 60s, retry once
+        - Other APIErrors: re-raise to caller
         - Any exception: re-raise to caller
         """
-        model = self._get_model()
+        client = self._get_client()
         full_prompt = _SYSTEM_PROMPT + "\n\n" + user_message
 
-        generation_config = genai.GenerationConfig(
-            response_mime_type="application/json",
-            max_output_tokens=2048,
-            temperature=0.1,      # low temperature = consistent structured JSON
-        )
-
         def _do_call():
-            return model.generate_content(
-                full_prompt,
-                generation_config=generation_config,
+            return client.models.generate_content(
+                model=self._model_name,
+                contents=full_prompt,
+                config={
+                    "response_mime_type": "application/json",
+                    "max_output_tokens": 2048,
+                    "temperature": 0.1,
+                }
             )
 
         # First attempt
         try:
             response = _do_call()
-        except ResourceExhausted:
-            logger.warning("Gemini ResourceExhausted (429). Waiting 60s before retry...")
-            time.sleep(60)
-            response = _do_call()   # second attempt — if this also fails, exception propagates
+        except Exception as exc:
+            if "429" in str(exc) or "exhausted" in str(exc).lower():
+                logger.warning("Gemini ResourceExhausted (429). Waiting 60s before retry...")
+                time.sleep(60)
+                response = _do_call()   # second attempt — if this also fails, exception propagates
+            else:
+                raise
 
         raw_text = response.text
 
@@ -319,10 +320,11 @@ class LLMBrain:
             result.output_token_count = output_tokens
             return result
 
-        except GoogleAPIError as exc:
-            logger.error(f"[{analysis_id}] Gemini API error (non-retryable): {exc}")
-            return self._fallback_result(f"api_error: {type(exc).__name__}", analysis_id)
         except Exception as exc:
+            if type(exc).__name__ == "APIError":
+                logger.error(f"[{analysis_id}] Gemini API error (non-retryable): {exc}")
+                return self._fallback_result(f"api_error: {type(exc).__name__}", analysis_id)
+                
             logger.error(f"[{analysis_id}] Unexpected LLMBrain error: {exc}")
             return self._fallback_result(f"unexpected: {type(exc).__name__}", analysis_id)
 

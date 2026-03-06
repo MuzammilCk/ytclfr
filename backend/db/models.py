@@ -45,6 +45,7 @@ class JobStatus(str, PyEnum):
     QUEUED = "queued"
     DOWNLOADING = "downloading"
     EXTRACTING_FRAMES = "extracting_frames"
+    PROCESSING = "processing"
     TRANSCRIBING = "transcribing"
     CLASSIFYING = "classifying"
     EXTRACTING_INFO = "extracting_info"
