@@ -102,60 +102,84 @@ def load_models_on_startup(**kwargs):
     global _models
     logger.info("Worker process init: loading ML models...")
 
-    # Whisper
+    # ── Whisper ───────────────────────────────────────────────────────────────
     try:
         from faster_whisper import WhisperModel
         device = settings.WHISPER_DEVICE
         try:
-            _models["whisper"] = WhisperModel(settings.WHISPER_MODEL_SIZE, device=device, cpu_threads=2)
+            _models["whisper"] = WhisperModel(
+                settings.WHISPER_MODEL_SIZE, device=device, cpu_threads=2
+            )
         except Exception:
             logger.warning("CUDA not available for Whisper — falling back to cpu")
-            _models["whisper"] = WhisperModel(settings.WHISPER_MODEL_SIZE, device="cpu", cpu_threads=2)
+            _models["whisper"] = WhisperModel(
+                settings.WHISPER_MODEL_SIZE, device="cpu", cpu_threads=2
+            )
         logger.info(f"Whisper '{settings.WHISPER_MODEL_SIZE}' loaded on {device}")
     except Exception as exc:
-        logger.error(f"Failed to load Whisper: {exc}")
+        logger.error(f"Whisper load failed (non-fatal — transcription will use lazy load): {exc}")
 
-    # YOLO
+    # ── YOLO (load the wrapper only — it handles the raw model internally) ────
     try:
-        from ultralytics import YOLO
-        _models["yolo"] = YOLO(settings.YOLO_MODEL_PATH)
-        logger.info(f"YOLO '{settings.YOLO_MODEL_PATH}' loaded")
+        _models["yolo"] = YOLODetector()
+        logger.info("YOLODetector loaded")
     except Exception as exc:
-        logger.error(f"Failed to load YOLO: {exc}")
+        logger.error(f"YOLODetector load failed (non-fatal — shopping YOLO disabled): {exc}")
 
-    # Intelligence router (Gemini LLM Brain — replaces EfficientNet+BERT ensemble)
+    # ── Intelligence Router (Gemini brain — the most important model) ─────────
     try:
         _models["brain_router"] = IntelligenceRouter()
         logger.info("IntelligenceRouter (Gemini brain) initialized")
     except Exception as exc:
-        logger.error(f"Failed to initialize IntelligenceRouter: {exc}")
+        logger.error(f"IntelligenceRouter init failed (CRITICAL — brain unavailable): {exc}")
 
-    # Legacy classifier kept for heuristic fallback only
+    # ── Legacy classifier (heuristic fallback only — optional) ────────────────
     try:
         _models["classifier"] = MultiModalClassifier()
+        logger.info("Legacy MultiModalClassifier loaded")
     except Exception as exc:
-        logger.warning(f"Legacy classifier load failed (non-fatal, used for heuristics only): {exc}")
+        logger.warning(f"Legacy classifier load failed (non-fatal — heuristic fallback disabled): {exc}")
 
-    _models["tmdb"] = TMDbService()
-    _models["spotify"] = SpotifyService()
-    _models["yolo"] = YOLODetector()
-    _models["llm_extractor"] = LlmExtractor()
-    logger.info("Worker initialization complete.")
+    # ── Integration services ──────────────────────────────────────────────────
+    try:
+        _models["tmdb"] = TMDbService()
+        logger.info("TMDbService initialized")
+    except Exception as exc:
+        logger.error(f"TMDbService init failed (non-fatal — TMDb enrichment disabled): {exc}")
+
+    try:
+        _models["spotify"] = SpotifyService()
+        logger.info("SpotifyService initialized")
+    except Exception as exc:
+        logger.error(f"SpotifyService init failed (non-fatal — Spotify enrichment disabled): {exc}")
+
+    # ── LLM Extractor (legacy fallback — optional) ────────────────────────────
+    try:
+        _models["llm_extractor"] = LlmExtractor()
+        logger.info("LlmExtractor (legacy) initialized")
+    except Exception as exc:
+        logger.warning(f"LlmExtractor init failed (non-fatal — legacy LLM extraction disabled): {exc}")
+
+    logger.info(
+        f"Worker initialization complete. Loaded models: {list(_models.keys())}"
+    )
 
 
 def _get_services() -> Tuple[
-    VideoDownloader, FrameExtractor, AudioTranscriber, MultiModalClassifier, TMDbService, SpotifyService, YOLODetector, LlmExtractor
+    VideoDownloader, FrameExtractor, AudioTranscriber,
+    Optional[MultiModalClassifier], TMDbService, SpotifyService,
+    Optional[YOLODetector], Optional[LlmExtractor]
 ]:
-    """Helper to inject dependencies."""
+    """Initialize and return service singletons. All models use .get() — no KeyError."""
     global _downloader, _frame_extractor, _transcriber, _classifier, _tmdb, _spotify, _yolo
     if _downloader is None:
         _downloader = VideoDownloader()
         _frame_extractor = FrameExtractor()
         _transcriber = AudioTranscriber()
-        _classifier = _models["classifier"] # Use cached classifier
-        _tmdb = _models["tmdb"] # Use cached TMDB
-        _spotify = _models["spotify"] # Use cached Spotify
-        _yolo = _models["yolo"] # Use cached YOLO
+        _classifier = _models.get("classifier")     # None if failed to load — that is OK
+        _tmdb = _models.get("tmdb") or TMDbService()
+        _spotify = _models.get("spotify") or SpotifyService()
+        _yolo = _models.get("yolo")
     return (
         _downloader,
         _frame_extractor,
@@ -164,7 +188,7 @@ def _get_services() -> Tuple[
         _tmdb,
         _spotify,
         _yolo,
-        _models["llm_extractor"] # Use cached LLM Extractor
+        _models.get("llm_extractor"),               # None if failed — pipeline handles this
     )
 
 
@@ -394,8 +418,8 @@ def analyse_video(
                 try:
                     return await transcriber.transcribe_with_translation(audio_path, language=None)
                 except Exception as exc:
-                    logger.error(f"[{analysis_id}] Transcription failed: {exc}")
-                    raise
+                    logger.error(f"[{analysis_id}] Transcription failed (non-fatal, pipeline continues): {exc}")
+                    return None
 
             video_ocr_result, transcription = await asyncio.gather(
                 _run_ocr_safe(),
@@ -506,7 +530,7 @@ def analyse_video(
                 # Try llama.cpp LlmExtractor first (if loaded)
                 llm_success = False
                 extraction = {}
-                if llm_extractor.is_available():
+                if llm_extractor is not None and llm_extractor.is_available():
                     try:
                         extraction = await asyncio.to_thread(
                             llm_extractor.extract,
@@ -703,7 +727,21 @@ def analyse_video(
                 shutil.rmtree(temp_dir, ignore_errors=True)
 
     try:
-        return asyncio.run(_async_pipeline())
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            return loop.run_until_complete(_async_pipeline())
+        finally:
+            try:
+                # Cancel all pending tasks before closing
+                pending = asyncio.all_tasks(loop)
+                for task in pending:
+                    task.cancel()
+                if pending:
+                    loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+            finally:
+                loop.close()
+                asyncio.set_event_loop(None)
     except SoftTimeLimitExceeded:
         logger.error(f"[{analysis_id}] Soft time limit exceeded")
         _update_status(analysis_id, "failed", error="Task timed out (soft limit)")

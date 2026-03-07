@@ -78,8 +78,8 @@ async def get_recent_activity(
         select(
             func.date_trunc("day", Analysis.created_at).label("day"),
             func.count().label("total"),
-            func.sum(
-                (Analysis.status == JobStatus.COMPLETE).cast(Integer)
+            func.coalesce(
+                func.sum((Analysis.status == JobStatus.COMPLETE).cast(Integer)), 0
             ).label("completed"),
         )
         .where(Analysis.created_at >= since)

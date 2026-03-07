@@ -120,7 +120,7 @@ class OCRService:
             sampled = frame_paths
 
         loop = asyncio.get_running_loop()
-        sem = asyncio.Semaphore(4)
+        sem = asyncio.Semaphore(8)
 
         async def _process_frame(path: str, ts: float) -> Optional[FrameOCRData]:
             async with sem:

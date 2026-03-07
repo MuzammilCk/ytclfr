@@ -43,16 +43,20 @@ router = APIRouter(prefix="/api/v1/auth", tags=["Auth"])
 
 # ── JWT helpers ────────────────────────────────────────────────────────────────
 
+import hashlib
+
 def _hash_password(password: str) -> str:
-    # bcrypt requires bytes, returns bytes. We store as a string.
+    # SHA-256 the password first, then bcrypt the hex digest to bypass the 72-byte limit
+    prehash = hashlib.sha256(password.encode("utf-8")).hexdigest()
     salt = bcrypt.gensalt()
-    hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
+    hashed = bcrypt.hashpw(prehash.encode('utf-8'), salt)
     return hashed.decode('utf-8')
 
 
 def _verify_password(plain: str, hashed: str) -> bool:
     try:
-        return bcrypt.checkpw(plain.encode('utf-8'), hashed.encode('utf-8'))
+        prehash = hashlib.sha256(plain.encode("utf-8")).hexdigest()
+        return bcrypt.checkpw(prehash.encode('utf-8'), hashed.encode('utf-8'))
     except ValueError:
         return False
 
