@@ -87,6 +87,10 @@ services:
       - checkpoints_data:/app/checkpoints
       - model_cache:/root/.cache
     env_file: ./backend/.env
+    environment:
+      - OMP_NUM_THREADS=1
+      - MKL_NUM_THREADS=1
+      - OPENBLAS_NUM_THREADS=1
     depends_on:
       redis:
         condition: service_healthy
@@ -95,7 +99,7 @@ services:
       mongo:
         condition: service_healthy
     command: >
-      celery -A services.pipeline.celery_app worker --loglevel=info -E -c 2
+      celery -A services.pipeline.celery_app worker --loglevel=info -E --pool=solo
 
   flower:
     image: mher/flower

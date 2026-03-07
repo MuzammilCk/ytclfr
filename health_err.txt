@@ -1,0 +1,20 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.5, pytest-8.3.4, pluggy-1.6.0 -- C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\python.exe
+cachedir: .pytest_cache
+rootdir: D:\projects\youtube-classifier
+configfile: pytest.ini
+plugins: anyio-4.12.0, Faker-40.4.0, jaxtyping-0.3.7, langsmith-0.4.49, asyncio-0.25.2, cov-6.0.0, mock-3.15.1, typeguard-2.13.3
+asyncio: mode=Mode.AUTO, asyncio_default_fixture_loop_scope=function
+collecting ... collected 1 item
+
+tests/integration/test_api.py::TestHealthEndpoint::test_health_returns_200 FAILED [100%]
+
+================================== FAILURES ===================================
+_________________ TestHealthEndpoint.test_health_returns_200 __________________
+tests\integration\test_api.py:130: in test_health_returns_200
+    assert resp.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+=========================== short test summary info ===========================
+FAILED tests/integration/test_api.py::TestHealthEndpoint::test_health_returns_200
+============================= 1 failed in 38.43s ==============================

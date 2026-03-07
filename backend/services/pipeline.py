@@ -107,10 +107,10 @@ def load_models_on_startup(**kwargs):
         from faster_whisper import WhisperModel
         device = settings.WHISPER_DEVICE
         try:
-            _models["whisper"] = WhisperModel(settings.WHISPER_MODEL_SIZE, device=device)
+            _models["whisper"] = WhisperModel(settings.WHISPER_MODEL_SIZE, device=device, cpu_threads=2)
         except Exception:
             logger.warning("CUDA not available for Whisper — falling back to cpu")
-            _models["whisper"] = WhisperModel(settings.WHISPER_MODEL_SIZE, device="cpu")
+            _models["whisper"] = WhisperModel(settings.WHISPER_MODEL_SIZE, device="cpu", cpu_threads=2)
         logger.info(f"Whisper '{settings.WHISPER_MODEL_SIZE}' loaded on {device}")
     except Exception as exc:
         logger.error(f"Failed to load Whisper: {exc}")
@@ -458,7 +458,7 @@ def analyse_video(
             # ── Step 5: Intelligence Brain (classify + extract) ───────────────────
             # IntelligenceRouter replaces the EfficientNet+BERT+LlmExtractor chain.
             # One call → category + items. Brain handles silent videos via OCR.
-            _update_status(analysis_id, "analyzing")
+            _update_status(analysis_id, "classifying")
             brain_router = _models.get("brain_router")
             brain_result = None
 

@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import List, Optional
 
 import cv2
+cv2.setNumThreads(1)
 import numpy as np
 from loguru import logger
 
@@ -119,7 +120,7 @@ class OCRService:
             sampled = frame_paths
 
         loop = asyncio.get_running_loop()
-        sem = asyncio.Semaphore(8)
+        sem = asyncio.Semaphore(4)
 
         async def _process_frame(path: str, ts: float) -> Optional[FrameOCRData]:
             async with sem:
@@ -179,22 +180,53 @@ class OCRService:
             pil_img = Image.fromarray(preprocessed)
 
             tess_lang = self.LANGUAGE_TO_TESSERACT.get(audio_language, self.default_lang) if audio_language else self.default_lang
-
-            # Get data with per-word confidence
-            data = pytesseract.image_to_data(
-                pil_img,
-                lang=tess_lang,
-                config=self.tesseract_config,
-                output_type=pytesseract.Output.DICT,
-            )
-
+            import subprocess
+            import tempfile
+            import csv
+            
             words = []
             confidences = []
-            for i, word in enumerate(data["text"]):
-                conf = int(data["conf"][i])
-                if conf > 30 and word.strip():   # filter low-confidence and empty tokens
-                    words.append(word)
-                    confidences.append(conf)
+            
+            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
+                temp_img_path = f.name
+                
+            try:
+                cv2.imwrite(temp_img_path, preprocessed)
+                
+                # Run tesseract via subprocess directly to avoid python thread-locking issues.
+                # output_base will have .tsv appended automatically by tesseract
+                cmd = [
+                    "tesseract", temp_img_path, "stdout",
+                    "-l", tess_lang,
+                    "--psm", "6", "--oem", "3",
+                    "tsv"
+                ]
+                
+                # 30 second timeout per frame
+                proc = subprocess.run(
+                    cmd, 
+                    capture_output=True, 
+                    text=True, 
+                    timeout=30,
+                    env={"OMP_THREAD_LIMIT": "1", **os.environ}
+                )
+                
+                if proc.returncode == 0 and proc.stdout:
+                    reader = csv.DictReader(proc.stdout.splitlines(), delimiter='\t')
+                    for row in reader:
+                        try:
+                            conf = int(float(row.get("conf", "-1")))
+                        except ValueError:
+                            conf = -1
+                            
+                        if conf > 30:
+                            word = row.get("text", "").strip()
+                            if word:
+                                words.append(word)
+                                confidences.append(conf)
+            finally:
+                if os.path.exists(temp_img_path):
+                    os.remove(temp_img_path)
 
             raw_text = " ".join(words)
             cleaned  = self._clean(raw_text)

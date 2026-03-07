@@ -1,0 +1,4 @@
+RAW RESPONSE START
+'{\n  "category": "music",\n  "confidence": 0.95,\n  "reasoning": "The OCR text clearly displays an artist name and a song title, which is characteristic of a music video.",\n  "extraction_source": "ocr",\n  "language": "en",\n  "items": [\n    {\n      "rank": null,\n      "title": "moonboy",\n      "artist": "JVKE",\n      "timestamp_secs": 10.0,\n      "raw_ocr": "JVKE - moonboy"\n    }\n  ]\n}'
+RAW RESPONSE END
+JSON PARSE SUCCESS. Keys: dict_keys(['category', 'confidence', 'reasoning', 'extraction_source', 'language', 'items'])

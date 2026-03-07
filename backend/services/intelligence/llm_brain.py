@@ -148,7 +148,7 @@ class LLMBrain:
     def __init__(
         self,
         api_key: str,
-        model: str = "gemini-3.1-flash-lite",
+        model: str = "gemini-2.5-flash",
     ):
         self._api_key = api_key
         self._model_name = model
@@ -349,7 +349,7 @@ class LLMBrain:
         except json.JSONDecodeError as exc:
             logger.error(
                 f"[{analysis_id}] Brain JSON parse failed: {exc}. "
-                f"Raw (first 300 chars): {raw_text[:300]}"
+                f"Full Raw Response:\n==== RAW START ====\n{raw_text}\n==== RAW END ===="
             )
             return self._fallback_result("json_parse_failed", analysis_id, raw_response=raw_text)
 

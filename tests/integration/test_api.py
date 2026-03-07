@@ -127,6 +127,7 @@ async def client():
 class TestHealthEndpoint:
     async def test_health_returns_200(self, client):
         resp = await client.get("/health")
+        print("\nHEALTH CHECK RESPONSE:", resp.json())
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] == "ok"

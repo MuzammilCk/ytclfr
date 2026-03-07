@@ -1,0 +1,30 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.5, pytest-8.3.4, pluggy-1.6.0 -- C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\python.exe
+cachedir: .pytest_cache
+rootdir: D:\projects\youtube-classifier
+configfile: pytest.ini
+plugins: anyio-4.12.0, Faker-40.4.0, jaxtyping-0.3.7, langsmith-0.4.49, asyncio-0.25.2, cov-6.0.0, mock-3.15.1, typeguard-2.13.3
+asyncio: mode=Mode.AUTO, asyncio_default_fixture_loop_scope=function
+collecting ... collected 1 item
+
+tests/integration/test_api.py::TestHealthEndpoint::test_health_returns_200 
+HEALTH CHECK RESPONSE: {'status': 'degraded', 'version': '1.0.0', 'services': {'postgres': {'ok': False, 'error': '[Errno 11001] getaddrinfo failed'}, 'mongodb': {'ok': False, 'error': "mongo:27017: [Errno 11001] getaddrinfo failed (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms), Timeout: 30s, Topology Description: <TopologyDescription id: 69ab752aec5234bb71e084fa, topology_type: Unknown, servers: [<ServerDescription ('mongo', 27017) server_type: Unknown, rtt: None, error=AutoReconnect('mongo:27017: [Errno 11001] getaddrinfo failed (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms)')>]>"}, 'redis': {'ok': False, 'error': 'Error 11001 connecting to redis:6379. getaddrinfo failed.'}, 'celery': {'ok': True, 'error': None}}}
+FAILED
+
+================================== FAILURES ===================================
+_________________ TestHealthEndpoint.test_health_returns_200 __________________
+
+self = <tests.integration.test_api.TestHealthEndpoint object at 0x0000025F79CD3D90>
+client = <httpx.AsyncClient object at 0x0000025F79E881A0>
+
+    async def test_health_returns_200(self, client):
+        resp = await client.get("/health")
+        print("\nHEALTH CHECK RESPONSE:", resp.json())
+>       assert resp.status_code == 200
+E       assert 503 == 200
+E        +  where 503 = <Response [503 Service Unavailable]>.status_code
+
+tests\integration\test_api.py:131: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/integration/test_api.py::TestHealthEndpoint::test_health_returns_200
+============================= 1 failed in 37.44s ==============================

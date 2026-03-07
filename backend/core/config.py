@@ -111,7 +111,7 @@ class Settings(BaseSettings):
 
     # ── Intelligence Layer (Gemini LLM Brain) ─────────────────────────────────
     GEMINI_API_KEY: str = ""                  # get free key: https://aistudio.google.com/app/apikey
-    GEMINI_MODEL: str = "gemini-3.1-flash-lite" # free tier available
+    GEMINI_MODEL: str = "gemini-2.5-flash"    # free tier available
     BRAIN_CONFIDENCE_THRESHOLD: float = 0.85  # Tier 2 routing threshold (Month 6)
     LLM_FALLBACK_ENABLED: bool = True         # fall back to heuristics if LLM unavailable
 

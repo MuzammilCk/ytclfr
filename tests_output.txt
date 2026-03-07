@@ -1,0 +1,96 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.5, pytest-8.3.4, pluggy-1.6.0
+rootdir: d:\projects\youtube-classifier
+configfile: pytest.ini
+plugins: anyio-4.12.1, Faker-40.4.0, asyncio-0.25.2, cov-6.0.0
+asyncio: mode=Mode.AUTO, asyncio_default_fixture_loop_scope=function
+collected 67 items
+
+..\tests\unit\test_admin_routes.py .........                             [ 13%]
+..\tests\unit\test_config_settings.py ...                                [ 17%]
+..\tests\unit\test_extraction.py ......................                  [ 50%]
+..\tests\unit\test_intelligence_router.py ...                            [ 55%]
+..\tests\unit\test_listicle_cleaning.py .                                [ 56%]
+..\tests\unit\test_llm_brain.py ........                                 [ 68%]
+..\tests\unit\test_recipe_parsing.py .                                   [ 70%]
+..\tests\unit\test_shopping_extractor.py ........                        [ 82%]
+..\tests\unit\test_spotify.py .E                                         [ 85%]
+..\tests\unit\test_tmdb_fallback.py E                                    [ 86%]
+..\tests\unit\test_training_collector.py ...                             [ 91%]
+..\tests\unit\test_yolo_detector.py ......                               [100%]
+
+=================================== ERRORS ====================================
+______________ ERROR at setup of test_search_track_cascade_logic ______________
+file D:\projects\youtube-classifier\tests\unit\test_spotify.py, line 13
+  @pytest.mark.asyncio
+  async def test_search_track_cascade_logic(mocker):
+      # Mock the spotipy client
+      mock_client = MagicMock()
+
+      # We will simulate the client returning no results for the first 2 queries,
+      # and a valid result for the 3rd query (the fuzzy one).
+      def mock_search(q, **kwargs):
+E       fixture 'mocker' not found
+>       available fixtures: _session_event_loop, _session_faker, anyio_backend, anyio_backend_name, anyio_backend_options, app, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, client, cov, doctest_namespace, event_loop, event_loop_policy, faker, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, mock_spotify, mock_tmdb, monkeypatch, no_cover, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, sample_analysis_id, sample_music_metadata, sample_transcript, sample_video_metadata, tests/unit/test_spotify.py::<event_loop>, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, unused_tcp_port, unused_tcp_port_factory, unused_udp_port, unused_udp_port_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+D:\projects\youtube-classifier\tests\unit\test_spotify.py:13
+____________ ERROR at setup of test_enrich_list_items_tv_fallback _____________
+file D:\projects\youtube-classifier\tests\unit\test_tmdb_fallback.py, line 5
+  @pytest.mark.asyncio
+  async def test_enrich_list_items_tv_fallback(mocker):
+      service = TMDbService()
+
+      # Mock search_movie to return None
+      mock_search_movie = mocker.patch.object(service, "search_movie", return_value=None)
+
+      # Mock search_tv_show to return a TV show
+      fake_tv_info = MovieInfo(
+          tmdb_id=123,
+          title="Fake TV Show",
+          original_title="Fake TV Show",
+          year="2020",
+          vote_average=8.0,
+          vote_count=100,
+          overview="Overview",
+          genres=[],
+          poster_url=None,
+          backdrop_url=None,
+          imdb_id=None,
+          imdb_url=None,
+          homepage=None,
+      )
+      mock_search_tv_show = mocker.patch.object(service, "search_tv_show", return_value=fake_tv_info)
+
+      # Mock get_streaming
+      fake_streaming = StreamingAvailability(flatrate=["Netflix"])
+      mock_get_streaming = mocker.patch.object(service, "get_streaming", return_value=fake_streaming)
+
+      input_item = {"title": "Fake TV Show", "year": "2020"}
+
+      results = await service.enrich_list_items([input_item])
+
+      assert len(results) == 1
+      assert results[0]["media_type"] == "tv"
+      assert results[0]["tmdb_id"] == 123
+      assert results[0]["streaming"]["flatrate"] == ["Netflix"]
+
+      # Verify the calls were made
+      mock_search_movie.assert_called_once_with("Fake TV Show", "2020")
+      mock_search_tv_show.assert_called_once_with("Fake TV Show", "2020")
+      mock_get_streaming.assert_called_once_with(123, media_type="tv")
+E       fixture 'mocker' not found
+>       available fixtures: _session_event_loop, _session_faker, anyio_backend, anyio_backend_name, anyio_backend_options, app, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, client, cov, doctest_namespace, event_loop, event_loop_policy, faker, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, mock_spotify, mock_tmdb, monkeypatch, no_cover, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, sample_analysis_id, sample_music_metadata, sample_transcript, sample_video_metadata, tests/unit/test_tmdb_fallback.py::<event_loop>, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, unused_tcp_port, unused_tcp_port_factory, unused_udp_port, unused_udp_port_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+D:\projects\youtube-classifier\tests\unit\test_tmdb_fallback.py:5
+============================== warnings summary ===============================
+.venv\Lib\site-packages\pydantic\v1\typing.py:68: 22 warnings
+  D:\projects\youtube-classifier\backend\.venv\Lib\site-packages\pydantic\v1\typing.py:68: DeprecationWarning: Failing to pass a value to the 'type_params' parameter of 'typing.ForwardRef._evaluate' is deprecated, as it leads to incorrect behaviour when calling typing.ForwardRef._evaluate on a stringified annotation that references a PEP 695 type parameter. It will be disallowed in Python 3.15.
+    return cast(Any, type_)._evaluate(globalns, localns, recursive_guard=set())
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+ERROR ..\tests\unit\test_spotify.py::test_search_track_cascade_logic
+ERROR ..\tests\unit\test_tmdb_fallback.py::test_enrich_list_items_tv_fallback
+================== 65 passed, 22 warnings, 2 errors in 9.35s ==================
